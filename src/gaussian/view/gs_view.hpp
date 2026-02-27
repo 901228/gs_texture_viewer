@@ -3,7 +3,6 @@
 #pragma once
 
 #include <memory>
-#include <string>
 
 #include "../model/gs_gl_data.hpp"
 
@@ -74,18 +73,6 @@ protected:
 public:
   enum class RenderingMode : int { Splats, Points, Ellipsoids };
   inline void setMode(RenderingMode mode) { currMode = mode; }
-  static inline std::string getModeName(RenderingMode mode) {
-    switch (mode) {
-    case RenderingMode::Splats:
-      return "Splats";
-    case RenderingMode::Points:
-      return "InitialPoints";
-    case RenderingMode::Ellipsoids:
-      return "Ellipsoids";
-    default:
-      return "Unknown";
-    }
-  }
 
 protected:
   RenderingMode currMode = RenderingMode::Splats;

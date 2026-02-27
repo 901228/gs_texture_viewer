@@ -320,7 +320,8 @@ void TextureGSPanel::_controls() {
         }
 
         ImGui::NewLine();
-        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode), "Harmonics\0ExpMap\0");
+        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
+                     Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
         if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
           textureGaussian->mesh().calculateParameterization(_solvingMode, 0.0f);
           _solved = true;

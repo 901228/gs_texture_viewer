@@ -31,18 +31,13 @@ if(MSVC)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/utf-8>)
 endif()
 
-# include
-include_directories(extern/OpenMesh/src/)
-
+# external libraries
 add_subdirectory(extern)
+
+# GAUSSIAN_LIB
+add_subdirectory(src/gaussian)
+
+# main source code
 add_subdirectory(src)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")
-
-# install paths
-# install(TARGETS ${PROJECT_NAME}
-# CONFIGURATIONS Debug
-# RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/Debug)
-# install(TARGETS ${PROJECT_NAME}
-# CONFIGURATIONS Release MinSizeRel RelWithDebInfo
-# RUNTIME DESTINATION ${CMAKE_BINARY_DIR}/Release)

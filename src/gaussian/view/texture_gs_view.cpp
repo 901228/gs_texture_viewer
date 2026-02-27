@@ -10,6 +10,7 @@
 
 #include "../model/utils.hpp"
 #include "../utils/camera/camera.hpp"
+#include "../utils/utils.hpp"
 #include "renderer/gaussian_renderer.hpp"
 
 #include <cuda_gl_interop.h>
@@ -39,10 +40,11 @@ bool TextureGSView::onResize(int width, int height) {
 
 void TextureGSView::controls() {
 
-  if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode), "Splats\0Mesh\0")) {
+  if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
+                   Utils::enumToCombo<RenderingMode>().c_str())) {
 
     setMode(currMode);
-    DEBUG("change rendering mode to {}", TextureGSView::getModeName(currMode));
+    DEBUG("change rendering mode to {}", Utils::name(currMode));
   }
   ImGui::NewLine();
 

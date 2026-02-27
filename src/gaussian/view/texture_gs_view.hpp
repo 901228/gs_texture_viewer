@@ -3,7 +3,6 @@
 #pragma once
 
 #include <memory>
-#include <string>
 
 #include <cuda_runtime.h>
 
@@ -59,16 +58,6 @@ public:
   enum class RenderingMode : int { Splats, Mesh };
   [[nodiscard]] inline RenderingMode mode() const { return currMode; }
   inline void setMode(RenderingMode mode) { currMode = mode; }
-  static inline std::string getModeName(RenderingMode mode) {
-    switch (mode) {
-    case RenderingMode::Splats:
-      return "Splats";
-    case RenderingMode::Mesh:
-      return "Mesh";
-    default:
-      return "Unknown";
-    }
-  }
 
 private:
   RenderingMode currMode = RenderingMode::Splats;

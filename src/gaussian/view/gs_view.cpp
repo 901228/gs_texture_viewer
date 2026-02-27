@@ -16,6 +16,7 @@
 #include "../renderer/point_renderer.hpp"
 #include "../utils/camera/camera.hpp"
 #include "../utils/logger.hpp"
+#include "../utils/utils.hpp"
 
 GaussianView::GaussianView(int render_w, int render_h, int sh_degree, bool white_bg, bool useInterop,
                            int device)
@@ -150,10 +151,11 @@ unsigned int GaussianView::getTextureId() const {
 
 void GaussianView::controls() {
 
-  if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode), "Splats\0Points\0Ellipsoids\0")) {
+  if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
+                   Utils::enumToCombo<RenderingMode>().c_str())) {
 
     setMode(currMode);
-    DEBUG("change rendering mode to {}", GaussianView::getModeName(currMode));
+    DEBUG("change rendering mode to {}", Utils::name(currMode));
   }
   ImGui::NewLine();
 

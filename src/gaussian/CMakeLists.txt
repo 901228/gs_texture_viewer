@@ -57,8 +57,11 @@ set_target_properties(GAUSSIAN_LIB PROPERTIES
   POSITION_INDEPENDENT_CODE ON
 )
 
+# link libraries
+target_link_libraries(GAUSSIAN_LIB PRIVATE glad imgui OpenMeshCore OpenMeshTools magic_enum::magic_enum)
+
 # link CUDA runtime
-target_link_libraries(GAUSSIAN_LIB PUBLIC CUDA::cudart glad imgui)
+target_link_libraries(GAUSSIAN_LIB PUBLIC CUDA::cudart)
 target_link_directories(GAUSSIAN_LIB PUBLIC ${CUDAToolkit_LIBRARY_DIR})
 
 # include directories

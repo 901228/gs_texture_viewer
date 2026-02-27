@@ -14,38 +14,38 @@
 #include "../gl/program.hpp"
 #include "../logger.hpp"
 
-int TextureWrap::gl() const {
+int TextureWrap::gl(Mode mode) {
   switch (mode) {
-  case Repeat:
+  case Mode::Repeat:
     return GL_REPEAT;
-  case Mirror:
+  case Mode::Mirror:
     return GL_MIRRORED_REPEAT;
-  case Clamp:
+  case Mode::Clamp:
     return GL_CLAMP_TO_EDGE;
-  case Border:
+  case Mode::Border:
     return GL_CLAMP_TO_BORDER;
   default:
     throw std::runtime_error("Unknown texture wrap mode!");
   }
 }
 
-cudaTextureAddressMode TextureWrap::cuda() const {
+cudaTextureAddressMode TextureWrap::cuda(Mode mode) {
   switch (mode) {
-  case Repeat:
+  case Mode::Repeat:
     return cudaAddressModeWrap;
-  case Mirror:
+  case Mode::Mirror:
     return cudaAddressModeMirror;
-  case Clamp:
+  case Mode::Clamp:
     return cudaAddressModeClamp;
-  case Border:
+  case Mode::Border:
     return cudaAddressModeBorder;
   default:
     throw std::runtime_error("Unknown texture wrap mode!");
   }
 }
 
-std::unique_ptr<ImageTexture> ImageTexture::create(const std::string &path, TextureWrap wrapX,
-                                                   TextureWrap wrapY) {
+std::unique_ptr<ImageTexture> ImageTexture::create(const std::string &path, TextureWrap::Mode wrapX,
+                                                   TextureWrap::Mode wrapY) {
   unsigned int id;
   float width, height;
   if (!loadImage(path, id, width, height, wrapX, wrapY)) {
@@ -56,7 +56,7 @@ std::unique_ptr<ImageTexture> ImageTexture::create(const std::string &path, Text
 }
 
 ImageTexture::ImageTexture(const std::string &path, const unsigned int &id, const float &width,
-                           const float &height, TextureWrap wrapX, TextureWrap wrapY)
+                           const float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY)
     : _path(path), _name(std::filesystem::path(path).stem().string()), _id(id), _width(width),
       _height(height), _wrapX(wrapX), _wrapY(wrapY) {
 
@@ -71,7 +71,7 @@ ImageTexture::~ImageTexture() {
 }
 
 bool ImageTexture::loadImage(const std::string &path, unsigned int &id, float &width, float &height,
-                             TextureWrap wrapX, TextureWrap wrapY) {
+                             TextureWrap::Mode wrapX, TextureWrap::Mode wrapY) {
 
   try {
     glGenTextures(1, &id);
@@ -91,8 +91,8 @@ bool ImageTexture::loadImage(const std::string &path, unsigned int &id, float &w
       width = static_cast<float>(w);
       height = static_cast<float>(h);
 
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapX.gl());
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapY.gl());
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, TextureWrap::gl(wrapX));
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, TextureWrap::gl(wrapY));
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -143,12 +143,12 @@ bool ImageTexture::toCuda() {
       resDesc.res.array.array = cuArray;
 
       cudaTextureDesc texDesc = {};
-      texDesc.addressMode[0] = _wrapX.cuda(); // TEXTURE_WRAP
-      texDesc.addressMode[1] = _wrapY.cuda();
+      texDesc.addressMode[0] = TextureWrap::cuda(_wrapX); // TEXTURE_WRAP
+      texDesc.addressMode[1] = TextureWrap::cuda(_wrapY);
       texDesc.readMode = cudaReadModeNormalizedFloat; // uchar4 → float4 [0,1]
       texDesc.filterMode = cudaFilterModeLinear;      // bilinear interpolation
       // float4 pixel = tex2D<float4>(texObj, u, v);
-      texDesc.normalizedCoords = 1; // 使用 0~1 UV 座標
+      texDesc.normalizedCoords = 1; // use 0~1 UV coordinates
 
       cudaTextureObject_t texObj;
       cudaError_t err = cudaCreateTextureObject(&texObj, &resDesc, &texDesc, nullptr);

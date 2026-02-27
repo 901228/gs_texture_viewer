@@ -107,10 +107,10 @@ struct TangentFrame {
 
 // Per-vertex data for ExpMap propagation
 struct ExpMapVertex {
-  enum State { INACTIVE, ACTIVE, FROZEN };
+  enum class State { INACTIVE, ACTIVE, FROZEN };
 
   OpenMesh::VertexHandle vh;
-  State state = INACTIVE;
+  State state = State::INACTIVE;
   float distance = std::numeric_limits<float>::max();
   glm::vec2 surfaceVector = {0, 0}; // UV coordinates (geodesic)
   TangentFrame frame;

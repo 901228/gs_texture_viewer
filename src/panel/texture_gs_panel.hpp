@@ -73,7 +73,7 @@ private:
   // rotate
   float _editingTextureTheta = 0;
 
-  enum TextureEditingMode { None, Rotate, Scale, Move };
+  enum class TextureEditingMode : int { None, Rotate, Scale, Move };
   TextureEditingMode _textureEditingMode = TextureEditingMode::None;
 };
 

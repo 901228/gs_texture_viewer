@@ -212,7 +212,7 @@ void TextureGaussianModel::controls() {
 
   ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.005f, "%.4f");
   ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureOption.mode),
-               "None\0Texture Coords\0Texture\0");
+               Utils::enumToCombo<CudaRasterizer::RenderingMode>().c_str());
 
   if (_textureOption.mode == CudaRasterizer::RenderingMode::Texture) {
 

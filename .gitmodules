@@ -28,3 +28,6 @@
 [submodule "extern/imguizmo"]
 	path = extern/imguizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "extern/magic_enum"]
+	path = extern/magic_enum
+	url = https://github.com/Neargye/magic_enum.git

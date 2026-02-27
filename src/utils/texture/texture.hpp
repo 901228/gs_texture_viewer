@@ -11,29 +11,28 @@
 
 class Program;
 
-struct TextureWrap {
-  enum Mode { Repeat, Mirror, Clamp, Border };
-  Mode mode;
+namespace TextureWrap {
 
-  inline explicit TextureWrap(Mode m) : mode(m) {}
+enum class Mode : int { Repeat, Mirror, Clamp, Border };
 
-  [[nodiscard]] int gl() const;
-  [[nodiscard]] cudaTextureAddressMode cuda() const;
-};
+int gl(Mode mode);
+cudaTextureAddressMode cuda(Mode mode);
+
+}; // namespace TextureWrap
 
 class ImageTexture {
 public:
   static std::unique_ptr<ImageTexture> create(const std::string &path,
-                                              TextureWrap wrapX = TextureWrap(TextureWrap::Mode::Repeat),
-                                              TextureWrap wrapY = TextureWrap(TextureWrap::Mode::Repeat));
+                                              TextureWrap::Mode wrapX = TextureWrap::Mode::Repeat,
+                                              TextureWrap::Mode wrapY = TextureWrap::Mode::Repeat);
 
   explicit ImageTexture(const std::string &path, const unsigned int &id, const float &width,
-                        const float &height, TextureWrap wrapX, TextureWrap wrapY);
+                        const float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY);
   ~ImageTexture();
 
 private:
   static bool loadImage(const std::string &path, unsigned int &id, float &width, float &height,
-                        TextureWrap wrapX, TextureWrap wrapY);
+                        TextureWrap::Mode wrapX, TextureWrap::Mode wrapY);
 
 private:
   unsigned int _id = 0;
@@ -42,8 +41,8 @@ private:
   float _width = 1;
   float _height = 1;
 
-  TextureWrap _wrapX;
-  TextureWrap _wrapY;
+  TextureWrap::Mode _wrapX;
+  TextureWrap::Mode _wrapY;
 
 public:
   [[nodiscard]] inline unsigned int id() const { return _id; }

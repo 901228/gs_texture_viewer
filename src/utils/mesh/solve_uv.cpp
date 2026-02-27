@@ -362,14 +362,14 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
 
   for (MyMesh::VertexHandle vh : originMesh.vertices()) {
     vertices[vh.idx()].vh = vh;
-    vertices[vh.idx()].state = ExpHelper::ExpMapVertex::INACTIVE;
+    vertices[vh.idx()].state = ExpHelper::ExpMapVertex::State::INACTIVE;
     vertices[vh.idx()].distance = std::numeric_limits<float>::max();
   }
 
   // Initialize seed vertex
   int seedIdx = seedVh.idx();
   ExpHelper::ExpMapVertex &seed = vertices[seedIdx];
-  seed.state = ExpHelper::ExpMapVertex::FROZEN;
+  seed.state = ExpHelper::ExpMapVertex::State::FROZEN;
   seed.distance = 0.0f;
   seed.surfaceVector = glm::vec2(0, 0);
 
@@ -406,7 +406,7 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
     auto &nv = vertices[nvh.idx()];
     nv.distance = glm::length(Utils::toGlm(originMesh.point(nvh)) - seedPos);
     nv.nearest = seedVh;
-    nv.state = ExpHelper::ExpMapVertex::ACTIVE;
+    nv.state = ExpHelper::ExpMapVertex::State::ACTIVE;
     pq.push(nvh.idx());
   }
 
@@ -416,10 +416,10 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
     pq.pop();
 
     auto &cur = vertices[curIdx];
-    if (cur.state == ExpHelper::ExpMapVertex::FROZEN) {
+    if (cur.state == ExpHelper::ExpMapVertex::State::FROZEN) {
       continue; // Already processed
     }
-    cur.state = ExpHelper::ExpMapVertex::FROZEN;
+    cur.state = ExpHelper::ExpMapVertex::State::FROZEN;
 
     // Propagate frame and compute surface vector
     propagateFrame(vertices, cur, seedIdx, originMesh);
@@ -438,7 +438,7 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
 
       auto &nv = vertices[nvh.idx()];
 
-      if (nv.state == ExpHelper::ExpMapVertex::FROZEN) {
+      if (nv.state == ExpHelper::ExpMapVertex::State::FROZEN) {
         continue;
       }
 
@@ -448,7 +448,7 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
       if (newDist < nv.distance) {
         nv.distance = newDist;
         nv.nearest = curVh;
-        nv.state = ExpHelper::ExpMapVertex::ACTIVE;
+        nv.state = ExpHelper::ExpMapVertex::State::ACTIVE;
         pq.push(nvh.idx());
       }
     }
@@ -483,7 +483,7 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
 
     for (auto vh : originMesh.vertices()) {
       auto &v = vertices[vh.idx()];
-      if (v.state == ExpHelper::ExpMapVertex::FROZEN) {
+      if (v.state == ExpHelper::ExpMapVertex::State::FROZEN) {
         // Transform geodesic coords to [0,1] UV space
         glm::vec2 uv = v.surfaceVector * uvScale + 0.5f;
         originMesh.set_texcoord2D(vh, {uv.x, uv.y});

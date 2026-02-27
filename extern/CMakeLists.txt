@@ -53,3 +53,5 @@ add_library(stb
   stb/stb_image_resize2.cpp
 )
 target_include_directories(stb PUBLIC "stb/")
+
+add_subdirectory(magic_enum)

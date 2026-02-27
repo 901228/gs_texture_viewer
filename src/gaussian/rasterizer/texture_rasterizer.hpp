@@ -10,7 +10,7 @@
 
 namespace CudaRasterizer {
 
-enum class RenderingMode : uint8_t { None, TextureCoords, Texture };
+enum class RenderingMode : int { None, TextureCoords, Texture };
 
 struct TextureOption {
   float scale = 1;

@@ -264,7 +264,7 @@ void ModelPanel::_controls() {
       {
         ImGui::Checkbox("wire", &wire);
         ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
-                     "Mesh\0Texture Coords\0Texture\0");
+                     Utils::enumToCombo<RenderingMode>().c_str());
       }
       ImGui::NewLine();
 
@@ -277,7 +277,8 @@ void ModelPanel::_controls() {
         }
 
         ImGui::NewLine();
-        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode), "Harmonics\0ExpMap\0");
+        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
+                     Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
         if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
           // TODO: implement angle ?
           model->calculateParameterization(_solvingMode, 0.0f);

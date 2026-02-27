@@ -2,9 +2,14 @@
 #define UTILS_HPP
 #pragma once
 
+#include <string>
+#include <string_view>
+
 #include <glm/glm.hpp>
 
 #include <imgui.h>
+
+#include <magic_enum/magic_enum.hpp>
 
 #include "mesh/mesh.hpp"
 
@@ -17,6 +22,19 @@ inline glm::vec2 toGlm(const ImVec2 &p) { return {p[0], p[1]}; }
 inline ImVec2 toImVec2(const glm::vec2 &v) { return {v.x, v.y}; }
 
 inline glm::vec2 toGlm(const MyMesh::TexCoord2D &p) { return {p[0], p[1]}; }
+
+template <typename EnumType> inline std::string enumToCombo() {
+
+  std::string result;
+  for (const std::string_view _name : magic_enum::enum_names<EnumType>()) {
+    result += _name;
+    result += '\0';
+  }
+  return result;
+}
+template <typename EnumType> inline std::string_view name(EnumType value) {
+  return magic_enum::enum_name(value);
+}
 
 } // namespace Utils
 
