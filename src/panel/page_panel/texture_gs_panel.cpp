@@ -8,13 +8,11 @@
 
 #include "../gaussian/model/texture_gs_model.hpp"
 #include "../utils/camera/trackball_camera.hpp"
-#include "../utils/gl/frameBufferHelper.hpp"
 #include "../utils/mesh/model.hpp"
 #include "../utils/texture/texture_editor.hpp"
 #include "../utils/utils.hpp"
 
-TextureGSPanel::TextureGSPanel()
-    : _textureGaussianModel(nullptr), camera(nullptr), selectingFBO(nullptr), _textureEditor(nullptr) {}
+TextureGSPanel::TextureGSPanel() : _textureGaussianModel(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
 TextureGSPanel::~TextureGSPanel() { detach(); }
 
@@ -22,8 +20,6 @@ void TextureGSPanel::_attach() {
   _textureGaussianModel =
       std::make_unique<TextureGaussianModel>((char *)(PROJECT_DIR "/assets/gs/armadillo/geo.ply"),
                                              (char *)(PROJECT_DIR "/assets/gs/armadillo/app.ply"), 3, 0);
-
-  selectingFBO = std::make_unique<FrameBufferHelper>(true);
 
   camera = std::make_unique<TrackballCamera>(-40.0f, TrackballCameraSettings());
   camera->setCenter(_textureGaussianModel->center());
@@ -37,31 +33,11 @@ void TextureGSPanel::_onResize(float width, float height) {
 
   // projection matrix
   camera->onResize(width, height);
-  selectingFBO->onResize(static_cast<GLsizei>(width), static_cast<GLsizei>(height));
 }
 
 void TextureGSPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
-
-  // for selecting FBO
-  {
-    selectingFBO->bindDraw();
-
-    float backgroundColor = 1.0f;
-    static const GLfloat background[] = {backgroundColor, backgroundColor, backgroundColor, 1.0f};
-    static const GLfloat one = 1.0f;
-
-    glClearColor(backgroundColor, backgroundColor, backgroundColor, 1);
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearBufferfv(GL_COLOR, 0, background);
-    glClearBufferfv(GL_DEPTH, 0, &one);
-
-    _textureGaussianModel->renderMesh(*camera, true, false, false, false, false, 0, {}, 1, {}, 0);
-
-    FrameBufferHelper::unbindDraw();
-  }
 
   if (ImGui::BeginChild(std::format("{} Splats View", name()).c_str())) {
 
@@ -87,9 +63,8 @@ void TextureGSPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        // int selectedID = _textureGaussianModel->select(Utils::toGlm(mousePosInWindow));
-        int selectedID = Model::getSelectedID(*selectingFBO, static_cast<int>(mousePosInWindow.x),
-                                              static_cast<int>(mousePosInWindow.y));
+        auto [selectedID, _] =
+            _textureGaussianModel->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < _textureGaussianModel->n_faces()) {
           _textureGaussianModel->selectRadius(selectedID, brushRadius, true);
           _solved = false;

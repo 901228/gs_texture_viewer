@@ -16,10 +16,6 @@ public:
   void render(const Camera &camera, const int &width, const int &height, const glm::vec3 &clearColor,
               float *image_cuda, cudaTextureObject_t texId,
               const CudaRasterizer::TextureOption &textureOption = {});
-  void renderMesh(const Camera &camera, bool isSelect, bool renderSelectedOnly, bool isWire,
-                  bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
-                  const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
-                  const glm::vec2 &textureOffset, float textureTheta);
   void controls() override;
 
 private:

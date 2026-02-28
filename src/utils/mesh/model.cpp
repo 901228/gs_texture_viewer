@@ -1,6 +1,8 @@
 #include "model.hpp"
 
 #include <filesystem>
+#include <queue>
+#include <unordered_set>
 
 #include <glad/gl.h>
 
@@ -16,7 +18,7 @@
 #endif
 
 #include "../camera/camera.hpp"
-#include "../gl/frameBufferHelper.hpp"
+#include "../utils.hpp"
 
 Model::Model()
     : _renderingProgram(std::make_unique<Program>(PROJECT_DIR "/src/shaders/shader.vert",
@@ -247,15 +249,60 @@ void Model::render(const Camera &camera, bool isSelect, bool renderSelectedOnly,
   }
 }
 
-int Model::getSelectedID(FrameBufferHelper &selectingFBO, int x, int y) {
+std::tuple<int, glm::vec3> Model::select(const Camera &camera, float width, float height,
+                                         const glm::vec2 &mousePos) {
 
-  GLuint pixel;
+  float x = 2.0f * (mousePos.x / width) - 1.0f;
+  float y = 1.0f - 2.0f * (mousePos.y / height);
+  glm::vec4 rayClip(x, y, -1.0f, 1.0f);
 
-  selectingFBO.bindRead();
-  glReadPixels(x, selectingFBO.getHeight() - y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &pixel);
-  FrameBufferHelper::unbindRead();
+  const glm::mat4 &proj = camera.projectionMatrix();
+  const glm::mat4 &view = camera.viewMatrix();
+  glm::vec4 rayEye = glm::inverse(proj) * rayClip;
+  rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
+  glm::vec3 rayDir = glm::normalize(glm::vec3(glm::inverse(view) * rayEye));
+  const glm::vec3 &rayOrigin = camera.eye();
 
-  return static_cast<int>(pixel);
+  float minT = 1e9f;
+  int faceIdx = -1;
+  glm::vec3 hitPoint{};
+
+  for (int i = 0; i < _vertices.size(); i += 9) {
+
+    // get point of vertices
+    glm::vec3 v0 = Utils::toGlm({_vertices[i], _vertices[i + 1], _vertices[i + 2]});
+    glm::vec3 v1 = Utils::toGlm({_vertices[i + 3], _vertices[i + 4], _vertices[i + 5]});
+    glm::vec3 v2 = Utils::toGlm({_vertices[i + 6], _vertices[i + 7], _vertices[i + 8]});
+
+    glm::vec3 e1 = v1 - v0;
+    glm::vec3 e2 = v2 - v0;
+    glm::vec3 h = glm::cross(rayDir, e2);
+    float a = glm::dot(e1, h);
+    if (std::abs(a) < 1e-6)
+      continue;
+    float f = 1.0f / a;
+    glm::vec3 s = rayOrigin - v0;
+    float u = f * glm::dot(s, h);
+    if (u < 0.0f || u > 1.0f)
+      continue;
+    glm::vec3 q = glm::cross(s, e1);
+    float v = f * glm::dot(rayDir, q);
+    if (v < 0.0f || u + v > 1.0f)
+      continue;
+    float t = f * glm::dot(e2, q);
+
+    if (t > 1e-4 && t < minT) {
+      minT = t;
+      faceIdx = i / 9;
+      hitPoint = rayOrigin + rayDir * minT;
+    }
+  }
+
+  if (faceIdx != -1) {
+    hitPoint = rayOrigin + rayDir * minT;
+  }
+
+  return std::make_tuple(faceIdx, hitPoint);
 }
 
 void Model::selectRadius(int id, int radius, bool isAdd) {
@@ -263,32 +310,35 @@ void Model::selectRadius(int id, int radius, bool isAdd) {
   if (id < 0 || id >= n_faces())
     return;
 
-  std::vector<std::pair<MyMesh::FaceHandle, std::pair<int, int>>> stack;
-  stack.push_back({_mesh.face_handle(id), {1, -1}});
+  std::unordered_set<int> visited;
 
-  for (int count = 0; count < stack.size(); count++) {
+  // {faceHandle, depth}
+  std::queue<std::pair<MyMesh::FaceHandle, int>> queue;
+  queue.emplace(_mesh.face_handle(id), 0);
+  visited.insert(id);
 
-    auto i = stack.at(count);
+  while (!queue.empty()) {
+    auto [fh, depth] = queue.front();
+    queue.pop();
 
-    if (isAdd)
-      _selectedID->insert(i.first.idx());
-    else {
-
-      auto flag = _selectedID->find(i.first.idx());
-      if (_selectedID->find(i.first.idx()) != _selectedID->end())
+    if (isAdd) {
+      _selectedID->insert(fh.idx());
+    } else {
+      auto flag = _selectedID->find(fh.idx());
+      if (flag != _selectedID->end())
         _selectedID->erase(flag);
     }
 
-    if (i.second.first >= radius)
+    if (depth >= radius)
       continue;
 
-    for (const auto j : _mesh.ff_range(i.first)) {
+    for (const auto &neighbor : _mesh.ff_range(fh)) {
 
-      if (!_mesh.is_valid_handle(j))
+      if (!_mesh.is_valid_handle(neighbor) || visited.contains(neighbor.idx()))
         continue;
-      if (j.idx() == i.second.second)
-        continue;
-      stack.push_back({j, {i.second.first + 1, i.first.idx()}});
+
+      visited.insert(neighbor.idx());
+      queue.emplace(neighbor, depth + 1);
     }
   }
 }

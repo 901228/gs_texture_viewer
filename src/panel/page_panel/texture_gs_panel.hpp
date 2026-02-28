@@ -41,10 +41,6 @@ private:
   CudaRasterizer::RenderingMode _textureRenderMode = CudaRasterizer::RenderingMode::Texture;
 
 private:
-  // model
-  std::unique_ptr<FrameBufferHelper> selectingFBO;
-
-private:
   // editing options
   int brushRadius = 10;
 

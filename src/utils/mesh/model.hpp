@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <set>
+#include <tuple>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -64,10 +65,9 @@ protected:
   std::unique_ptr<std::set<unsigned int>> _selectedID;
 
 public:
-  // TODO: use the raycast to select the face
-  int select(const glm::vec2 &mousePos);
-  // TODO: not using FBO to select the face
-  static int getSelectedID(FrameBufferHelper &selectingFBO, int x, int y);
+  // <face_id, hit_pos>
+  std::tuple<int, glm::vec3> select(const Camera &camera, float width, float height,
+                                    const glm::vec2 &mousePos);
 
   inline void addSelectedID(unsigned int id) { _selectedID->insert(id); }
   virtual void clearSelect();

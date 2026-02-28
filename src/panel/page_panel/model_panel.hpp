@@ -12,7 +12,6 @@
 #include "../utils/mesh/solve_uv.hpp"
 
 class Model;
-class FrameBufferHelper;
 class Camera;
 class TextureEditor;
 
@@ -34,7 +33,6 @@ protected:
 private:
   // model
   std::unique_ptr<Model> model;
-  std::unique_ptr<FrameBufferHelper> selectingFBO;
   std::unique_ptr<Camera> camera;
 
 private:

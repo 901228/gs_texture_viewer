@@ -205,17 +205,6 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   }
 }
 
-void TextureGaussianModel::renderMesh(const Camera &camera, bool isSelect, bool renderSelectedOnly,
-                                      bool isWire, bool isRenderTextureCoords, bool isRenderTexture,
-                                      int currentTextureId,
-                                      const std::vector<std::unique_ptr<ImageTexture>> &textureList,
-                                      float textureRadius, const glm::vec2 &textureOffset,
-                                      float textureTheta) {
-  // HACK: use raycast to get the selected face ID
-  Model::render(camera, isSelect, renderSelectedOnly, isWire, isRenderTextureCoords, isRenderTexture,
-                currentTextureId, textureList, textureRadius, textureOffset, textureTheta);
-}
-
 void TextureGaussianModel::controls() {
 
   GaussianModel::controls();

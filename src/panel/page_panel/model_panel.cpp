@@ -4,23 +4,19 @@
 
 #include "../main_window.hpp"
 #include "../utils/camera/trackball_camera.hpp"
-#include "../utils/gl/frameBufferHelper.hpp"
 #include "../utils/imgui/opengl.hpp"
 #include "../utils/mesh/model.hpp"
 #include "../utils/texture/texture_editor.hpp"
 #include "../utils/utils.hpp"
 
-ModelPanel::ModelPanel() : model(nullptr), selectingFBO(nullptr), camera(nullptr), _textureEditor(nullptr) {}
+ModelPanel::ModelPanel() : model(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
 ModelPanel::~ModelPanel() { detach(); }
 
 void ModelPanel::_attach() {
 
   model = std::make_unique<Model>((char *)(PROJECT_DIR "/assets/models/armadillo.obj"));
-  selectingFBO = std::make_unique<FrameBufferHelper>(true);
-
   camera = std::make_unique<TrackballCamera>(-6.0f);
-
   _textureEditor = std::make_unique<TextureEditor>();
 }
 
@@ -30,32 +26,11 @@ void ModelPanel::_onResize(float width, float height) {
 
   // projection matrix
   camera->onResize(width, height);
-
-  selectingFBO->onResize(static_cast<GLsizei>(width), static_cast<GLsizei>(height));
 }
 
 void ModelPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
-
-  // for selecting FBO
-  {
-    selectingFBO->bindDraw();
-
-    float backgroundColor = 1.0f;
-    static const GLfloat background[] = {backgroundColor, backgroundColor, backgroundColor, 1.0f};
-    static const GLfloat one = 1.0f;
-
-    glClearColor(backgroundColor, backgroundColor, backgroundColor, 1);
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearBufferfv(GL_COLOR, 0, background);
-    glClearBufferfv(GL_DEPTH, 0, &one);
-
-    model->render(*camera, true, false, false, false, false, 0, {}, 1, {}, 0);
-
-    FrameBufferHelper::unbindDraw();
-  }
 
   if (ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag)) {
 
@@ -82,8 +57,7 @@ void ModelPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        int selectedID = Model::getSelectedID(*selectingFBO, static_cast<int>(mousePosInWindow.x),
-                                              static_cast<int>(mousePosInWindow.y));
+        auto [selectedID, _] = model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < model->n_faces()) {
           // TODO: implement delete
           model->selectRadius(selectedID, brushRadius, true);
