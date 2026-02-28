@@ -5,6 +5,8 @@
 #include <string>
 #include <string_view>
 
+#include <vector_types.h>
+
 #include <glm/glm.hpp>
 
 #include <imgui.h>
@@ -23,6 +25,8 @@ inline ImVec2 toImVec2(const glm::vec2 &v) { return {v.x, v.y}; }
 
 inline glm::vec2 toGlm(const MyMesh::TexCoord2D &p) { return {p[0], p[1]}; }
 
+inline float2 toFloat2(const glm::vec2 &v) { return {v.x, v.y}; }
+
 template <typename EnumType> inline std::string enumToCombo() {
 
   std::string result;
@@ -35,6 +39,12 @@ template <typename EnumType> inline std::string enumToCombo() {
 template <typename EnumType> inline std::string_view name(EnumType value) {
   return magic_enum::enum_name(value);
 }
+
+namespace FileDialog {
+
+std::string openImageDialog();
+
+} // namespace FileDialog
 
 } // namespace Utils
 

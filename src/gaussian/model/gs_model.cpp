@@ -4,6 +4,7 @@
 
 #include "../utils/camera/camera.hpp"
 #include "gs_gl_data.hpp"
+#include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
 
@@ -123,7 +124,7 @@ void GaussianModel::_loadPly(const char *plyPath) {
 }
 
 void GaussianModel::render(const Camera &camera, const int &width, const int &height,
-                           const glm::vec3 &clearColor, float *image_cuda) {
+                           const glm::vec3 &clearColor, float *image_cuda) const {
 
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_background_cuda, glm::value_ptr(clearColor), sizeof(glm::vec3), cudaMemcpyHostToDevice));
@@ -165,8 +166,9 @@ void GaussianModel::render(const Camera &camera, const int &width, const int &he
 
 void GaussianModel::controls() {
 
-  ImGui::SeparatorText("Splat Render Option");
-  {
+  if (ImGui::CollapsingHeader("Splat Render Option")) {
+    ImGui::Indent();
+
     ImGui::Checkbox("Fast Culling", &_fastCulling);
     ImGui::Checkbox("Antialiasing", &_antialiasing);
     ImGui::SliderFloat("Scaling Modifier", &_scalingModifier, 0.001f, 1.0f);
@@ -180,8 +182,9 @@ void GaussianModel::controls() {
       ImGui::SliderFloat("Box Max Y", &_boxmax.y, _scenemin.y, _scenemax.y);
       ImGui::SliderFloat("Box Max Z", &_boxmax.z, _scenemin.z, _scenemax.z);
     }
+
+    ImGui::Unindent();
   }
-  ImGui::NewLine();
 }
 
 glm::vec3 GaussianModel::center() const { return Utils::getModelCenter(_boxmin, _boxmax); }

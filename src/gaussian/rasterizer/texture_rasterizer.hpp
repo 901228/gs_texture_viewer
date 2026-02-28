@@ -16,7 +16,7 @@ struct TextureOption {
   float scale = 1;
   float2 offset = {};
   float theta = 0;
-  RenderingMode mode = RenderingMode::Texture;
+  RenderingMode mode = RenderingMode::None;
 };
 
 struct PixelMask {

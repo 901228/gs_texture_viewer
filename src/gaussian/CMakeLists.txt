@@ -40,15 +40,13 @@ add_library(GAUSSIAN_LIB STATIC
   rasterizer/vector/matrix.hpp
   rasterizer/vector/vector.hpp
 
-  renderer/ellipsoid_renderer.cpp
-  renderer/point_renderer.cpp
-  renderer/gaussian_renderer.cpp
-
   model/gs_model.cpp
   model/texture_gs_model.cpp
 
   view/gs_view.cpp
-  view/texture_gs_view.cpp
+  view/renderer/ellipsoid_renderer.cpp
+  view/renderer/point_renderer.cpp
+  view/renderer/gaussian_renderer.cpp
 )
 
 # CUDA Separable Compilation

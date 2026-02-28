@@ -3,14 +3,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../../utils/logger.hpp"
-#include "../model/gs_gl_data.hpp"
 #include "../utils/camera/camera.hpp"
+#include "../utils/logger.hpp"
+#include "model/gs_gl_data.hpp"
 
 EllipsoidRenderer::EllipsoidRenderer() {
 
-  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/renderer/shader/ellipsoid.vert",
-                                      PROJECT_DIR "/src/gaussian/renderer/shader/ellipsoid.frag", "");
+  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.vert",
+                                      PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.frag", "");
 
   glCreateTextures(GL_TEXTURE_2D, 1, &idTexture);
   glTextureParameteri(idTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

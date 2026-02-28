@@ -1,13 +1,13 @@
 #include "point_renderer.hpp"
 
-#include "../../utils/camera/camera.hpp"
-#include "../../utils/logger.hpp"
-#include "../model/gs_gl_data.hpp"
+#include "../utils/camera/camera.hpp"
+#include "../utils/logger.hpp"
+#include "model/gs_gl_data.hpp"
 
 PointRenderer::PointRenderer() {
 
-  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/renderer/shader/alpha_points.vert",
-                                      PROJECT_DIR "/src/gaussian/renderer/shader/alpha_points.frag", "");
+  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/alpha_points.vert",
+                                      PROJECT_DIR "/src/gaussian/view/renderer/shader/alpha_points.frag", "");
 
   fbo = std::make_unique<FrameBufferHelper>(false, true);
 }

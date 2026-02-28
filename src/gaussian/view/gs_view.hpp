@@ -1,64 +1,41 @@
-#ifndef GS_VIEW_HPP
-#define GS_VIEW_HPP
+#ifndef GAUSSIAN_VIEW_HPP
+#define GAUSSIAN_VIEW_HPP
 #pragma once
 
 #include <memory>
+#include <vector>
 
-#include "../model/gs_gl_data.hpp"
-
-#include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
 #include <glm/glm.hpp>
 
-class Camera;
 class EllipsoidRenderer;
 class PointRenderer;
 class GaussianRenderer;
+class Camera;
 class GaussianModel;
 
 class GaussianView {
 public:
-  /**
-   * Constructor
-   *
-   * @param render_w rendering width
-   * @param render_h rendering height
-   * @param sh_degree spherical harmonics degree
-   * @param white_bg if true, render with white background, otherwise render with black background
-   * @param useInterop if true, use CUDA/OpenGL interop, which will share the memory between CUDA and OpenGL
-   * @param device CUDA device index
-   */
-  GaussianView(int render_w, int render_h, int sh_degree, bool white_bg = false, bool useInterop = true,
-               int device = 0);
+  static GaussianView &getInstance() {
+    static GaussianView instance;
+    return instance;
+  }
+  GaussianView(GaussianView const &) = delete;
+  void operator=(GaussianView const &) = delete;
 
-  GaussianView(int render_w, int render_h, const char *plyPath, int sh_degree, bool white_bg = false,
-               bool useInterop = true, int device = 0);
+private:
+  GaussianView();
   ~GaussianView();
 
-  void render(Camera &camera);
-  virtual bool onResize(int width, int height);
-  virtual void controls();
-  [[nodiscard]] virtual GaussianModel &model() const;
-  [[nodiscard]] virtual unsigned int getTextureId() const;
+private:
+  int _width = 800;
+  int _height = 800;
+  bool _useInterop = true;
 
-protected:
-  void _initInterop();
-  void _releaseInterop();
-
-protected:
-  int _render_w;
-  int _render_h;
-  bool _white_bg;
-  bool _useInterop;
-
-protected:
-  // gaussian model data
-  std::unique_ptr<GaussianModel> _gsModel;
-
-protected:
+private:
   // rendering
-  GLuint imageBuffer = 0;
+  unsigned int imageBuffer = 0;
   cudaGraphicsResource_t imageBufferCuda{};
 
   bool _interop_failed = false;
@@ -72,10 +49,16 @@ protected:
 
 public:
   enum class RenderingMode : int { Splats, Points, Ellipsoids };
-  inline void setMode(RenderingMode mode) { currMode = mode; }
 
-protected:
-  RenderingMode currMode = RenderingMode::Splats;
+private:
+  void _initInterop();
+  void _releaseInterop();
+
+  void _onResize(int width, int height);
+
+public:
+  unsigned int render(RenderingMode mode, Camera &camera, int width, int height, glm::vec3 clearColor,
+                      const GaussianModel &model, const std::function<void(float *)> &render_fn = nullptr);
 };
 
-#endif // !GS_VIEW_HPP
+#endif // !GAUSSIAN_VIEW_HPP

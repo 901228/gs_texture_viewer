@@ -21,7 +21,7 @@ protected:
 
 public:
   virtual void render(const Camera &camera, const int &width, const int &height, const glm::vec3 &clearColor,
-                      float *image_cuda);
+                      float *image_cuda) const;
   virtual void controls();
 
 public:

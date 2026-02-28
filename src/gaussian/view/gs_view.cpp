@@ -1,46 +1,33 @@
 #include "gs_view.hpp"
 
+#include <glad/gl.h>
+
 #include <cuda_gl_interop.h>
-
-#include <cstdio>
-#include <cuda_runtime_api.h>
-#include <stdexcept>
-#include <vector>
-
-#include <glm/gtc/type_ptr.hpp>
 
 #include "../model/gs_model.hpp"
 #include "../model/utils.hpp"
-#include "../renderer/ellipsoid_renderer.hpp"
-#include "../renderer/gaussian_renderer.hpp"
-#include "../renderer/point_renderer.hpp"
 #include "../utils/camera/camera.hpp"
 #include "../utils/logger.hpp"
-#include "../utils/utils.hpp"
+#include "renderer/ellipsoid_renderer.hpp"
+#include "renderer/gaussian_renderer.hpp"
+#include "renderer/point_renderer.hpp"
 
-GaussianView::GaussianView(int render_w, int render_h, int sh_degree, bool white_bg, bool useInterop,
-                           int device)
-    : _render_w(render_w), _render_h(render_h), _white_bg(white_bg), _useInterop(useInterop) {
+GaussianView::GaussianView() {
 
   _initInterop();
-}
-
-GaussianView::GaussianView(int render_w, int render_h, const char *plyPath, int sh_degree, bool white_bg,
-                           bool useInterop, int device)
-    : GaussianView(render_w, render_h, sh_degree, white_bg, useInterop, device) {
-
-  _gsModel = std::make_unique<GaussianModel>(plyPath, sh_degree, device);
 
   _ellipsoidRenderer = std::make_unique<EllipsoidRenderer>();
   _pointRenderer = std::make_unique<PointRenderer>();
   _gaussianRenderer = std::make_unique<GaussianRenderer>();
 }
 
+GaussianView::~GaussianView() { _releaseInterop(); }
+
 void GaussianView::_initInterop() {
 
   // Create GL buffer ready for CUDA/GL interop
   glCreateBuffers(1, &imageBuffer);
-  glNamedBufferStorage(imageBuffer, static_cast<long>(_render_w * _render_h * 3 * sizeof(float)), nullptr,
+  glNamedBufferStorage(imageBuffer, static_cast<long>(_width * _height * 3 * sizeof(float)), nullptr,
                        GL_DYNAMIC_STORAGE_BIT);
 
   if (_useInterop) {
@@ -55,7 +42,7 @@ void GaussianView::_initInterop() {
 
   INFO("Interop: {}", _useInterop ? "true" : "false");
   if (!_useInterop) {
-    fallback_bytes.resize(_render_w * _render_h * 3 * sizeof(float));
+    fallback_bytes.resize(_width * _height * 3 * sizeof(float));
     cudaMalloc(&fallbackBufferCuda, fallback_bytes.size());
     _interop_failed = true;
   }
@@ -74,33 +61,31 @@ void GaussianView::_releaseInterop() {
   imageBuffer = 0;
 }
 
-GaussianView::~GaussianView() { _releaseInterop(); }
+void GaussianView::_onResize(int width, int height) {
+  if (_width == width && _height == height)
+    return;
 
-bool GaussianView::onResize(int width, int height) {
-  if (_render_w == width && _render_h == height)
-    return false;
-
-  _render_w = width;
-  _render_h = height;
+  _width = width;
+  _height = height;
 
   _releaseInterop();
   _interop_failed = false; // reset state, let _initInterop re-judge
   _initInterop();
-
-  return true;
 }
 
-void GaussianView::render(Camera &camera) {
+unsigned int GaussianView::render(RenderingMode mode, Camera &camera, int width, int height,
+                                  glm::vec3 clearColor, const GaussianModel &model,
+                                  const std::function<void(float *)> &render_fn) {
 
-  glm::vec3 clearColor = _white_bg ? glm::vec3(1.0f) : glm::vec3(0.0f);
+  _onResize(width, height);
 
-  if (currMode == RenderingMode::Points) {
-    _pointRenderer->render(_gsModel->count(), _gsModel->gaussianGLData(), _render_w, _render_h, camera,
-                           clearColor);
-  } else if (currMode == RenderingMode::Ellipsoids) {
-    _ellipsoidRenderer->render(_gsModel->count(), _gsModel->gaussianGLData(), _render_w, _render_h, camera,
-                               clearColor);
-  } else if (currMode == RenderingMode::Splats) {
+  if (mode == RenderingMode::Points) {
+    _pointRenderer->render(model.count(), model.gaussianGLData(), _width, _height, camera, clearColor);
+    return _pointRenderer->getTexture();
+  } else if (mode == RenderingMode::Ellipsoids) {
+    _ellipsoidRenderer->render(model.count(), model.gaussianGLData(), _width, _height, camera, clearColor);
+    return _ellipsoidRenderer->getTexture();
+  } else if (mode == RenderingMode::Splats) {
 
     float *image_cuda = nullptr;
     if (!_interop_failed) {
@@ -112,7 +97,11 @@ void GaussianView::render(Camera &camera) {
       image_cuda = fallbackBufferCuda;
     }
 
-    _gsModel->render(camera, _render_w, _render_h, clearColor, image_cuda);
+    if (!render_fn) {
+      model.render(camera, _width, _height, clearColor, image_cuda);
+    } else {
+      render_fn(image_cuda);
+    }
 
     if (!_interop_failed) {
       // Unmap OpenGL resource for use with OpenGL
@@ -124,45 +113,16 @@ void GaussianView::render(Camera &camera) {
     }
 
     // Copy image contents to framebuffer
-    _gaussianRenderer->render(imageBuffer, _render_w, _render_h, clearColor, true, true);
-  } else {
-    throw std::runtime_error("Unknown rendering mode!");
-  }
+    _gaussianRenderer->render(imageBuffer, _width, _height, clearColor, true, true);
 
-  if (cudaPeekAtLastError() != cudaSuccess) {
-    throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
-                                         "in Debug to find the exact line!",
-                                         cudaGetErrorString(cudaGetLastError())));
-  }
-}
+    if (cudaPeekAtLastError() != cudaSuccess) {
+      throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
+                                           "in Debug to find the exact line!",
+                                           cudaGetErrorString(cudaGetLastError())));
+    }
 
-unsigned int GaussianView::getTextureId() const {
-
-  if (currMode == RenderingMode::Points) {
-    return _pointRenderer->getTexture();
-  } else if (currMode == RenderingMode::Ellipsoids) {
-    return _ellipsoidRenderer->getTexture();
-  } else if (currMode == RenderingMode::Splats) {
     return _gaussianRenderer->getTexture();
   } else {
     throw std::runtime_error("Unknown rendering mode!");
   }
 }
-
-void GaussianView::controls() {
-
-  if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
-                   Utils::enumToCombo<RenderingMode>().c_str())) {
-
-    setMode(currMode);
-    DEBUG("change rendering mode to {}", Utils::name(currMode));
-  }
-  ImGui::NewLine();
-
-  if (currMode == GaussianView::RenderingMode::Splats) {
-
-    _gsModel->controls();
-  }
-}
-
-GaussianModel &GaussianView::model() const { return *_gsModel; }

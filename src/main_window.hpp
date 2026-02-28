@@ -13,7 +13,7 @@
 
 #include <imgui.h>
 
-class Panel;
+class PagePanel;
 
 class MainWindow {
 
@@ -69,7 +69,7 @@ private:
   float sliderFloat = 0;
 
 private:
-  std::vector<std::unique_ptr<Panel>> panels;
+  std::vector<std::unique_ptr<PagePanel>> panels;
   int currentPanel = 0;
 };
 

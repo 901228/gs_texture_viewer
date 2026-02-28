@@ -64,7 +64,11 @@ protected:
   std::unique_ptr<std::set<unsigned int>> _selectedID;
 
 public:
+  // TODO: use the raycast to select the face
+  int select(const glm::vec2 &mousePos);
+  // TODO: not using FBO to select the face
   static int getSelectedID(FrameBufferHelper &selectingFBO, int x, int y);
+
   inline void addSelectedID(unsigned int id) { _selectedID->insert(id); }
   virtual void clearSelect();
   virtual void selectRadius(int id, int radius, bool isAdd);

@@ -5,8 +5,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <imgui.h>
 #include <cstdio>
+#include <imgui.h>
 
 class CameraSettings {
 public:
@@ -96,15 +96,17 @@ public:
   inline void setCenter(glm::vec3 newCenter) { _setCenter(newCenter); }
 
   inline void controls(const glm::vec3 &modelCenter) {
-    ImGui::SeparatorText("Camera Option");
-    {
+    if (ImGui::CollapsingHeader("Camera Option")) {
+      ImGui::Indent();
+
       if (ImGui::Button("Focus on Model", {ImGui::GetContentRegionAvail().x, 0})) {
         setCenter(modelCenter);
       }
 
       _controls();
+
+      ImGui::Unindent();
     }
-    ImGui::NewLine();
   }
 
 protected:

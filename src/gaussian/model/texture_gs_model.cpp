@@ -1,12 +1,12 @@
 #include "texture_gs_model.hpp"
 
-#include <numbers>
 #include <ranges>
 #include <utility>
 
 #include "../utils/camera/camera.hpp"
 #include "../utils/utils.hpp"
 #include "gs_model.hpp"
+#include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
 
@@ -147,7 +147,7 @@ void TextureGaussianModel::initModelForCuda() {
 
 void TextureGaussianModel::render(const Camera &camera, const int &width, const int &height,
                                   const glm::vec3 &clearColor, float *image_cuda, cudaTextureObject_t texId,
-                                  float textureRadius, glm::vec2 textureOffset, float textureTheta) {
+                                  const CudaRasterizer::TextureOption &textureOption) {
 
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_background_cuda, glm::value_ptr(clearColor), sizeof(glm::vec3), cudaMemcpyHostToDevice));
@@ -192,12 +192,11 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   int *rects = _fastCulling ? _rect_cuda : nullptr;
   float *boxmin = _cropping ? (float *)&_boxmin : nullptr;
   float *boxmax = _cropping ? (float *)&_boxmax : nullptr;
-  CudaRasterizer::forward(_geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA,
-                          _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
-                          nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
-                          _view_cuda, _proj_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false, image_cuda,
-                          _antialiasing, nullptr, rects, boxmin, boxmax, _mask_cuda, _threshold,
-                          {textureRadius, {textureOffset.x, textureOffset.y}, glm::radians(textureTheta)});
+  CudaRasterizer::forward(
+      _geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA, _sh_degree, MAX_SH_COEFF,
+      _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
+      _scalingModifier, _rot_cuda, nullptr, _view_cuda, _proj_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
+      image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _mask_cuda, _threshold, textureOption);
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
@@ -206,21 +205,22 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   }
 }
 
+void TextureGaussianModel::renderMesh(const Camera &camera, bool isSelect, bool renderSelectedOnly,
+                                      bool isWire, bool isRenderTextureCoords, bool isRenderTexture,
+                                      int currentTextureId,
+                                      const std::vector<std::unique_ptr<ImageTexture>> &textureList,
+                                      float textureRadius, const glm::vec2 &textureOffset,
+                                      float textureTheta) {
+  // HACK: use raycast to get the selected face ID
+  Model::render(camera, isSelect, renderSelectedOnly, isWire, isRenderTextureCoords, isRenderTexture,
+                currentTextureId, textureList, textureRadius, textureOffset, textureTheta);
+}
+
 void TextureGaussianModel::controls() {
 
   GaussianModel::controls();
 
   ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.005f, "%.4f");
-  ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureOption.mode),
-               Utils::enumToCombo<CudaRasterizer::RenderingMode>().c_str());
-
-  if (_textureOption.mode == CudaRasterizer::RenderingMode::Texture) {
-
-    // TODO: add texture operation
-    ImGui::SliderFloat("Texture Scale", &_textureOption.scale, 0.001f, 1.0f);
-    // ImGui::SliderFloat2("Texture Offset", &_textureOption.offset, 0.0f, 1.0f);
-    ImGui::SliderFloat("Texture Theta", &_textureOption.theta, 0.0f, std::numbers::pi);
-  }
 }
 
 void TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {

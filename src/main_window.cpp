@@ -11,10 +11,11 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <nfd.h>
+#include <stb_image.h>
 
-#include "panel/gaussian_panel.hpp"
-#include "panel/model_panel.hpp"
-#include "panel/texture_gs_panel.hpp"
+#include "panel/page_panel/gaussian_panel.hpp"
+#include "panel/page_panel/model_panel.hpp"
+#include "panel/page_panel/texture_gs_panel.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/logger.hpp"
 
@@ -64,6 +65,14 @@ bool MainWindow::Init() {
     }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
+
+    // load icon
+    GLFWimage images[1];
+    images[0].pixels = stbi_load(PROJECT_DIR "/icon.png", &images[0].width, &images[0].height, nullptr, 4);
+    if (images[0].pixels) {
+      glfwSetWindowIcon(window, 1, images);
+      stbi_image_free(images[0].pixels);
+    }
   }
 
   // glad initialization
@@ -128,9 +137,9 @@ bool MainWindow::Init() {
 
   // panels
   {
-    panels.push_back(std::make_unique<GaussianPanel>());
     panels.push_back(std::make_unique<TextureGSPanel>());
     panels.push_back(std::make_unique<ModelPanel>());
+    panels.push_back(std::make_unique<GaussianPanel>());
   }
 
   return true;
@@ -165,6 +174,7 @@ void MainWindow::Run() {
 void MainWindow::Destroy() {
 
   // OnDestroy
+  panels.clear();
   ImGui::fboData.Clear();
 
   NFD_Quit();
