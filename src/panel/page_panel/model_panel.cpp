@@ -57,7 +57,7 @@ void ModelPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        auto [selectedID, _] = model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
+        auto [_, selectedID, _] = model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < model->n_faces()) {
           // TODO: implement delete
           model->selectRadius(selectedID, brushRadius, true);

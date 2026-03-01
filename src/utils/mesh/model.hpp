@@ -3,14 +3,14 @@
 #pragma once
 
 #include <memory>
-#include <set>
-#include <tuple>
+#include <unordered_set>
 #include <vector>
 
 #include <glm/glm.hpp>
 
 #include "../gl/program.hpp"
 #include "../texture/texture.hpp"
+#include "hit_test.hpp"
 #include "mesh.hpp"
 #include "solve_uv.hpp"
 
@@ -34,13 +34,13 @@ private:
   unsigned int _vertexArrayObject = 0;
   unsigned int *_vertexBufferObject = nullptr;
   int _elementAmount = 0;
-  std::vector<float> _vertices;
+  std::vector<glm::vec3> _vertices;
 
 protected:
   // model
   bool loadModel(const char *path);
   void initMesh(bool toGL = true);
-  [[nodiscard]] inline const std::vector<float> &vertices() const { return _vertices; }
+  [[nodiscard]] inline const std::vector<glm::vec3> &vertices() const { return _vertices; }
 
 public:
   [[nodiscard]] size_t n_faces() const;
@@ -62,12 +62,12 @@ public:
                       const glm::vec2 &textureOffset, float textureTheta);
 
 protected:
-  std::unique_ptr<std::set<unsigned int>> _selectedID;
+  std::unique_ptr<std::unordered_set<unsigned int>> _selectedID;
 
 public:
-  // <face_id, hit_pos>
-  std::tuple<int, glm::vec3> select(const Camera &camera, float width, float height,
-                                    const glm::vec2 &mousePos);
+  BVH::BVH _bvh;
+  [[nodiscard]] HitResult select(const Camera &camera, float width, float height,
+                                 const glm::vec2 &mousePos) const;
 
   inline void addSelectedID(unsigned int id) { _selectedID->insert(id); }
   virtual void clearSelect();
@@ -75,7 +75,7 @@ public:
 
   virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, float angle);
 
-  [[nodiscard]] inline const std::set<unsigned int> &selectedID() const { return *_selectedID; }
+  [[nodiscard]] inline const std::unordered_set<unsigned int> &selectedID() const { return *_selectedID; }
   std::vector<TextureLine> getSelectedTextureLines();
   [[nodiscard]] virtual std::vector<std::pair<unsigned int, std::pair<float, float>>>
   getSelectedTextureCoords() const;

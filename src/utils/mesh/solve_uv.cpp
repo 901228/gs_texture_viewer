@@ -10,7 +10,8 @@
 
 #define Quad
 
-void CopySelectFace(const std::set<unsigned int> &selectedID, const MyMesh &originMesh, MyMesh &mesh) {
+void CopySelectFace(const std::unordered_set<unsigned int> &selectedID, const MyMesh &originMesh,
+                    MyMesh &mesh) {
 
   mesh.request_vertex_normals();
   mesh.request_face_normals();
@@ -47,7 +48,8 @@ void CopySelectFace(const std::set<unsigned int> &selectedID, const MyMesh &orig
 
 namespace SolveUV {
 
-void SolveHarmonics(const std::set<unsigned int> &selectedID, float uvRotateAngle, MyMesh &originMesh) {
+void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle,
+                    MyMesh &originMesh) {
   if (selectedID.empty())
     return;
 
@@ -329,7 +331,8 @@ void SolveHarmonics(const std::set<unsigned int> &selectedID, float uvRotateAngl
   }
 }
 
-void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, MyMesh &originMesh) {
+void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle,
+                 MyMesh &originMesh) {
 
   if (selectedID.empty())
     return;
@@ -345,7 +348,7 @@ void SolveExpMap(const std::set<unsigned int> &selectedID, float uvRotateAngle, 
   }
 
   // Build set of vertices from selected faces
-  std::set<int> selectedVertices;
+  std::unordered_set<int> selectedVertices;
   for (unsigned int f : selectedID) {
     MyMesh::FaceHandle fh = originMesh.face_handle(f);
     for (const MyMesh::VertexHandle &fv : originMesh.fv_range(fh)) {

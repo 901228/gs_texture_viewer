@@ -53,7 +53,7 @@ private:
   glm::vec2 *updateTexcoordVAO(bool returnData) override;
 
 private:
-  float _threshold = 0.005f;
+  float _threshold = 0.002f;
 
 private:
   // for CUDA

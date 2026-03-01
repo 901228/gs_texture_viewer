@@ -63,7 +63,7 @@ void TextureGSPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        auto [selectedID, _] =
+        auto [_, selectedID, _] =
             _textureGaussianModel->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < _textureGaussianModel->n_faces()) {
           _textureGaussianModel->selectRadius(selectedID, brushRadius, true);

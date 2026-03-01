@@ -26,7 +26,7 @@ Model::Model()
                                                   PROJECT_DIR "/src/shaders/shader.geom")),
       _selectingProgram(std::make_unique<Program>(PROJECT_DIR "/src/shaders/shader.vert",
                                                   PROJECT_DIR "/src/shaders/selecting.frag", "")),
-      _selectedID(std::make_unique<std::set<unsigned int>>()) {
+      _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
 
   _mesh.request_vertex_status();
   _mesh.request_edge_status();
@@ -104,34 +104,31 @@ bool Model::loadModel(const char *path) {
 
 void Model::initMesh(bool toGL) {
 
+  _bvh.build(_mesh);
+
   _vertices.clear();
-  std::vector<GLfloat> normals;
+  if (!toGL) {
 
-  MyMesh::Normal n;
-  MyMesh::Point v;
-  for (const MyMesh::FaceHandle &i : _mesh.faces()) {
-    for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
-      n = _mesh.normal(j);
-      v = _mesh.point(j);
-
-      _vertices.push_back(v[0]);
-      _vertices.push_back(v[1]);
-      _vertices.push_back(v[2]);
-
-      normals.push_back(n[0]);
-      normals.push_back(n[1]);
-      normals.push_back(n[2]);
-
-      _mesh.set_texcoord2D(j, {0, 0});
+    MyMesh::Point v;
+    for (const MyMesh::FaceHandle &i : _mesh.faces()) {
+      for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
+        _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
+        _mesh.set_texcoord2D(j, {0, 0});
+      }
     }
-  }
+  } else {
 
-  std::vector<GLint> selectIdx(n_faces() * 3, -1);
-  std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_faces() * 3, {0, 0});
+    std::vector<glm::vec3> normals;
+    for (const MyMesh::FaceHandle &i : _mesh.faces()) {
+      for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
+        _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
+        normals.emplace_back(Utils::toGlm(_mesh.normal(j)));
+        _mesh.set_texcoord2D(j, {0, 0});
+      }
+    }
 
-  // ===========================================================================================
-
-  if (toGL) {
+    std::vector<GLint> selectIdx(n_faces() * 3, -1);
+    std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_faces() * 3, {0, 0});
 
     glGenVertexArrays(1, &_vertexArrayObject);
     glBindVertexArray(_vertexArrayObject);
@@ -140,25 +137,25 @@ void Model::initMesh(bool toGL) {
     glGenBuffers(4, _vertexBufferObject);
 
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[0]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_vertices.size() * sizeof(GLfloat)), &_vertices[0],
+    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_vertices.size() * sizeof(glm::vec3)), _vertices.data(),
                  GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[1]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(normals.size() * sizeof(GLfloat)), &normals[0],
+    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(normals.size() * sizeof(glm::vec3)), normals.data(),
                  GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
     glBufferData(GL_ARRAY_BUFFER, static_cast<long>(textureCoord.size() * sizeof(glm::vec2)),
-                 &textureCoord[0], GL_STATIC_DRAW);
+                 textureCoord.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     glEnableVertexAttribArray(2);
 
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[3]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(selectIdx.size() * sizeof(GLint)), &selectIdx[0],
+    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(selectIdx.size() * sizeof(GLint)), selectIdx.data(),
                  GL_STATIC_DRAW);
     // use "glVertexAttrib 'I' Pointer" for int
     glVertexAttribIPointer(3, 1, GL_INT, 0, nullptr);
@@ -249,8 +246,7 @@ void Model::render(const Camera &camera, bool isSelect, bool renderSelectedOnly,
   }
 }
 
-std::tuple<int, glm::vec3> Model::select(const Camera &camera, float width, float height,
-                                         const glm::vec2 &mousePos) {
+HitResult Model::select(const Camera &camera, float width, float height, const glm::vec2 &mousePos) const {
 
   float x = 2.0f * (mousePos.x / width) - 1.0f;
   float y = 1.0f - 2.0f * (mousePos.y / height);
@@ -263,46 +259,8 @@ std::tuple<int, glm::vec3> Model::select(const Camera &camera, float width, floa
   glm::vec3 rayDir = glm::normalize(glm::vec3(glm::inverse(view) * rayEye));
   const glm::vec3 &rayOrigin = camera.eye();
 
-  float minT = 1e9f;
-  int faceIdx = -1;
-  glm::vec3 hitPoint{};
-
-  for (int i = 0; i < _vertices.size(); i += 9) {
-
-    // get point of vertices
-    glm::vec3 v0 = Utils::toGlm({_vertices[i], _vertices[i + 1], _vertices[i + 2]});
-    glm::vec3 v1 = Utils::toGlm({_vertices[i + 3], _vertices[i + 4], _vertices[i + 5]});
-    glm::vec3 v2 = Utils::toGlm({_vertices[i + 6], _vertices[i + 7], _vertices[i + 8]});
-
-    glm::vec3 e1 = v1 - v0;
-    glm::vec3 e2 = v2 - v0;
-    glm::vec3 h = glm::cross(rayDir, e2);
-    float a = glm::dot(e1, h);
-    if (std::abs(a) < 1e-6)
-      continue;
-    float f = 1.0f / a;
-    glm::vec3 s = rayOrigin - v0;
-    float u = f * glm::dot(s, h);
-    if (u < 0.0f || u > 1.0f)
-      continue;
-    glm::vec3 q = glm::cross(s, e1);
-    float v = f * glm::dot(rayDir, q);
-    if (v < 0.0f || u + v > 1.0f)
-      continue;
-    float t = f * glm::dot(e2, q);
-
-    if (t > 1e-4 && t < minT) {
-      minT = t;
-      faceIdx = i / 9;
-      hitPoint = rayOrigin + rayDir * minT;
-    }
-  }
-
-  if (faceIdx != -1) {
-    hitPoint = rayOrigin + rayDir * minT;
-  }
-
-  return std::make_tuple(faceIdx, hitPoint);
+  HitResult hit = _bvh.raycast(rayOrigin, rayDir);
+  return hit;
 }
 
 void Model::selectRadius(int id, int radius, bool isAdd) {
@@ -395,7 +353,7 @@ std::vector<TextureLine> Model::getSelectedTextureLines() {
     return {};
 
   std::vector<TextureLine> result;
-  std::set<int> selectedHF;
+  std::unordered_set<int> selectedHF;
 
   for (const unsigned int &i : *_selectedID) {
     for (const MyMesh::HalfedgeHandle &j : _mesh.fh_range(_mesh.face_handle(i))) {
@@ -425,7 +383,7 @@ std::vector<std::pair<unsigned int, std::pair<float, float>>> Model::getSelected
     return {};
 
   std::vector<std::pair<unsigned int, std::pair<float, float>>> result;
-  std::set<int> selectedVertices;
+  std::unordered_set<int> selectedVertices;
 
   for (const unsigned int &i : *_selectedID) {
     for (const MyMesh::VertexHandle &j : _mesh.fv_range(_mesh.face_handle(i))) {

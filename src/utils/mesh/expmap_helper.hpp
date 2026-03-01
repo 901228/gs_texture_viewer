@@ -2,7 +2,7 @@
 #define EXPMAP_HELPER_HPP
 #pragma once
 
-#include <set>
+#include <unordered_set>
 
 #include "mesh.hpp"
 
@@ -14,7 +14,7 @@
 
 namespace ExpHelper {
 
-inline int computeCenterFromFaces(const std::set<unsigned int> &selectedID, const MyMesh &mesh) {
+inline int computeCenterFromFaces(const std::unordered_set<unsigned int> &selectedID, const MyMesh &mesh) {
   if (selectedID.empty())
     return -1;
 
@@ -33,7 +33,7 @@ inline int computeCenterFromFaces(const std::set<unsigned int> &selectedID, cons
   // Find closest vertex to center (search within selected faces for efficiency)
   float minDist = std::numeric_limits<float>::max();
   int closestIdx = -1;
-  std::set<int> checkedVertices;
+  std::unordered_set<int> checkedVertices;
   for (unsigned int f : selectedID) {
     MyMesh::FaceHandle fh = mesh.face_handle(f);
     for (const MyMesh::VertexHandle &fv : mesh.fv_range(fh)) {
