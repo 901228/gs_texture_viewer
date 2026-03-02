@@ -24,7 +24,7 @@ void TextureGSPanel::_attach() {
   camera = std::make_unique<TrackballCamera>(-40.0f, TrackballCameraSettings());
   camera->setCenter(_textureGaussianModel->center());
 
-  _textureEditor = std::make_unique<TextureEditor>();
+  _textureEditor = std::make_unique<TextureEditor>(*_textureGaussianModel);
 }
 
 void TextureGSPanel::_detach() {}
@@ -56,21 +56,7 @@ void TextureGSPanel::_render() {
     ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)textureId, ImVec2(pos.x, pos.y),
                                          ImVec2(pos.x + _width, pos.y + _height), ImVec2(0, 1), ImVec2(1, 0));
 
-    if (ImGui::IsWindowHovered()) {
-      // handle select mesh face
-      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        ImVec2 windowPos = ImGui::GetWindowPos();
-        ImVec2 mousePos = ImGui::GetMousePos();
-        ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
-
-        auto [minT, selectedID, hitPos] =
-            _textureGaussianModel->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
-        if (selectedID >= 0 && selectedID < _textureGaussianModel->n_faces()) {
-          _textureGaussianModel->selectRadius(selectedID, brushRadius, true);
-          _solved = false;
-        }
-      }
-    }
+    _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
 
@@ -102,7 +88,7 @@ void TextureGSPanel::_renderParameterization() {
   }
 
   // handle parameterization input
-  _textureEditor->handleInput();
+  _textureEditor->handleTextureInput();
 
   static const float uvPointRadius = 2;
 
@@ -122,9 +108,9 @@ void TextureGSPanel::_renderParameterization() {
       }
       // appearance points
       else if (i == 1) {
-        drawList->AddCircleFilled({uv.first * window_width + pos.x, uv.second * window_height + pos.y},
-                                  uvPointRadius,
-                                  0xFFFF0000); // blue (ABGR)
+        // drawList->AddCircleFilled({uv.first * window_width + pos.x, uv.second * window_height + pos.y},
+        //                           uvPointRadius,
+        //                           0xFFFF0000); // blue (ABGR)
       } else {
         throw std::runtime_error("Unknown point type!");
       }
@@ -143,24 +129,6 @@ void TextureGSPanel::_controls() {
       ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureRenderMode),
                    Utils::enumToCombo<CudaRasterizer::RenderingMode>().c_str());
 
-      if (ImGui::CollapsingHeader("Brush Editing Option")) {
-        ImGui::Indent();
-
-        ImGui::SliderInt("Brush Size", &brushRadius, 1, 20, "%d");
-        if (ImGui::Button("Clear Selection", {ImGui::GetContentRegionAvail().x, 0})) {
-          _textureGaussianModel->clearSelect();
-        }
-
-        ImGui::NewLine();
-        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
-                     Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
-        if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-          _textureGaussianModel->calculateParameterization(_solvingMode, 0.0f);
-          _solved = true;
-        }
-        ImGui::Unindent();
-      }
-
       camera->controls(_textureGaussianModel->center());
 
       ImGui::EndTabItem();
@@ -168,25 +136,9 @@ void TextureGSPanel::_controls() {
 
     if (ImGui::BeginTabItem("textures")) {
 
-      if (!_solved) {
-
-        _textureGaussianModel->calculateParameterization(_solvingMode, 0.0f);
-        _solved = true;
-      }
-
-      _editingTexture = true;
-
-      if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
-
-        std::string imagePath = Utils::FileDialog::openImageDialog();
-        _textureEditor->add(imagePath);
-      }
-
-      _textureEditor->renderList();
+      _textureEditor->controls();
 
       ImGui::EndTabItem();
-    } else {
-      _editingTexture = false;
     }
 
     ImGui::EndTabBar();

@@ -9,8 +9,6 @@
 
 #include "page_panel.hpp"
 
-#include "utils/mesh/solve_uv.hpp"
-
 class Model;
 class Camera;
 class TextureEditor;
@@ -43,15 +41,7 @@ private:
   RenderingMode _renderingMode = RenderingMode::Mesh;
 
 private:
-  // editing options
-  int brushRadius = 10;
-
-  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
-  bool _solved = false;
-
-private:
   // texture
-  bool _editingTexture = false;
   std::unique_ptr<TextureEditor> _textureEditor;
 };
 

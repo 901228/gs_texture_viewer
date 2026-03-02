@@ -42,15 +42,7 @@ private:
   CudaRasterizer::RenderingMode _textureRenderMode = CudaRasterizer::RenderingMode::Texture;
 
 private:
-  // editing options
-  int brushRadius = 10;
-
-  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
-  bool _solved = false;
-
-private:
   // texture
-  bool _editingTexture = false;
   std::unique_ptr<TextureEditor> _textureEditor;
 };
 

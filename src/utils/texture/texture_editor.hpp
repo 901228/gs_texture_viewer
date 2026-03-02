@@ -8,24 +8,42 @@
 
 #include <glm/glm.hpp>
 
+#include "../mesh/model.hpp"
+#include "../mesh/solve_uv.hpp"
 #include "texture.hpp"
 
 class TextureEditor {
 private:
-  constexpr static std::string_view textureListPath = "textures.toml";
+  constexpr static std::string_view textureListPath = PROJECT_DIR "textures.toml";
 
 public:
-  explicit TextureEditor(const std::string &textureListPath = "textures.toml", float scaleStep = 0.1f,
-                         float scaleMin = 0.1f, float scaleMax = 2.0f);
+  explicit TextureEditor(Model &model, const std::string &textureListPath = "textures.toml",
+                         float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 2.0f);
   ~TextureEditor();
 
   void renderImage(float repeatSize = 2);
+  void handleTextureInput();
+  void handleBrushInput(const Camera &camera, float width, float height);
+  void controls();
+
+private:
   void renderList();
-  void handleInput();
+
+private:
+  Model &_model;
+
+private:
+  // brush and solving
+  int _brushRadius = 10;
+
+  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
+  bool _solved = false;
+  bool _autoCalculate = false;
 
 private:
   // texture
   std::vector<std::unique_ptr<ImageTexture>> _textureList{};
+  // TODO: how to deselect textrue ?
   int _selectedTexture = -1;
 
 public:

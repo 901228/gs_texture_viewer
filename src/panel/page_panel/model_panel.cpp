@@ -17,7 +17,7 @@ void ModelPanel::_attach() {
 
   model = std::make_unique<Model>((char *)(PROJECT_DIR "/assets/models/armadillo.obj"));
   camera = std::make_unique<TrackballCamera>(-6.0f);
-  _textureEditor = std::make_unique<TextureEditor>();
+  _textureEditor = std::make_unique<TextureEditor>(*model);
 }
 
 void ModelPanel::_detach() {}
@@ -45,27 +45,11 @@ void ModelPanel::_render() {
     glClearBufferfv(GL_DEPTH, 0, &one);
 
     model->render(*camera, false, false, wire, _renderingMode == RenderingMode::TextureCoords,
-                  _renderingMode == RenderingMode::Texture, _editingTexture ? _textureEditor->selected() : -1,
+                  _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
                   _textureEditor->theta());
 
-    if (ImGui::IsWindowHovered()) {
-
-      // handle select mesh face
-      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        ImVec2 windowPos = ImGui::GetWindowPos();
-        ImVec2 mousePos = ImGui::GetMousePos();
-        ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
-
-        auto [minT, selectedID, hitPos] =
-            model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
-        if (selectedID >= 0 && selectedID < model->n_faces()) {
-          // TODO: implement delete
-          model->selectRadius(selectedID, brushRadius, true);
-          _solved = false;
-        }
-      }
-    }
+    _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
 
@@ -98,7 +82,7 @@ void ModelPanel::_renderParameterization() {
   }
 
   // handle parameterization input
-  _textureEditor->handleInput();
+  _textureEditor->handleTextureInput();
 }
 
 void ModelPanel::_controls() {
@@ -116,23 +100,6 @@ void ModelPanel::_controls() {
       ImGui::NewLine();
 
       // TODO: add render mode (texture coords, mesh, texture)
-      ImGui::SeparatorText("Editing Option");
-      {
-        ImGui::SliderInt("Brush Size", &brushRadius, 1, 20, "%d");
-        if (ImGui::Button("Clear Selection", {ImGui::GetContentRegionAvail().x, 0})) {
-          model->clearSelect();
-        }
-
-        ImGui::NewLine();
-        ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
-                     Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
-        if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-          // TODO: implement angle ?
-          model->calculateParameterization(_solvingMode, 0.0f);
-          _solved = true;
-        }
-      }
-      ImGui::NewLine();
 
       camera->controls({});
 
@@ -141,23 +108,9 @@ void ModelPanel::_controls() {
 
     if (ImGui::BeginTabItem("textures")) {
 
-      _editingTexture = true;
-      if (!_solved) {
-
-        model->calculateParameterization(_solvingMode, 0.0f);
-        _solved = true;
-      }
-
-      if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
-
-        _textureEditor->add(Utils::FileDialog::openImageDialog());
-      }
-
-      _textureEditor->renderList();
+      _textureEditor->controls();
 
       ImGui::EndTabItem();
-    } else {
-      _editingTexture = false;
     }
 
     ImGui::EndTabBar();

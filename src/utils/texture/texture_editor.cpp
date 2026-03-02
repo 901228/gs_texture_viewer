@@ -5,13 +5,13 @@
 
 #include <imgui.h>
 
-#include "../utils.hpp"
 #include "../imgui/image_selectable.hpp"
 #include "../imgui/tool_line.hpp"
+#include "../utils.hpp"
 
-TextureEditor::TextureEditor(const std::string &textureListPath, float scaleStep, float scaleMin,
-                             float scaleMax)
-    : _textureList(ImageTexture::loadTextureList(textureListPath)), _scaleStep(scaleStep),
+TextureEditor::TextureEditor(Model &model, const std::string &textureListPath, float scaleStep,
+                             float scaleMin, float scaleMax)
+    : _model(model), _textureList(ImageTexture::loadTextureList(textureListPath)), _scaleStep(scaleStep),
       _scaleMin(scaleMin), _scaleMax(scaleMax) {}
 
 TextureEditor::~TextureEditor() = default;
@@ -83,6 +83,49 @@ void TextureEditor::renderList() {
   }
 }
 
+void TextureEditor::controls() {
+
+  ImGui::SeparatorText("Brush Options");
+  {
+    ImGui::SliderInt("Brush Size", &_brushRadius, 1, 60);
+    if (ImGui::Button("Clear Selection", {ImGui::GetContentRegionAvail().x, 0})) {
+      _model.clearSelect();
+    }
+  }
+  ImGui::NewLine();
+
+  ImGui::SeparatorText("Solving Texture Coords");
+  {
+    ImGui::Checkbox("Auto Solve Texture Coords", &_autoCalculate);
+    ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
+                 Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
+    if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
+      // TODO: implement angle ?
+      _model.calculateParameterization(_solvingMode, 0.0f);
+      _solved = true;
+    }
+  }
+  ImGui::NewLine();
+
+  ImGui::SeparatorText("Texture");
+  {
+    if (_autoCalculate && !_solved) {
+
+      // TODO: use another thread to calculate
+      _model.calculateParameterization(_solvingMode, 0.0f);
+      _solved = true;
+    }
+
+    if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
+
+      add(Utils::FileDialog::openImageDialog());
+    }
+
+    renderList();
+  }
+  ImGui::NewLine();
+}
+
 bool TextureEditor::add(const std::string &imagePath) {
 
   // check image path is not empty and exists
@@ -101,7 +144,16 @@ bool TextureEditor::add(const std::string &imagePath) {
   return true;
 }
 
-void TextureEditor::handleInput() {
+void TextureEditor::handleTextureInput() {
+
+  if (_selectedTexture < 0 || _selectedTexture >= _textureList.size()) {
+
+    if (ImGui::IsWindowHovered()) {
+      ImGui::SetMouseCursor(ImGuiMouseCursor_NotAllowed);
+    }
+
+    return;
+  }
 
   const glm::vec2 contentSize = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
   ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -159,5 +211,24 @@ void TextureEditor::handleInput() {
 
   if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
     _isMouseLeftDown = false;
+  }
+}
+
+void TextureEditor::handleBrushInput(const Camera &camera, float width, float height) {
+
+  if (ImGui::IsWindowHovered()) {
+    // handle select mesh face
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+      glm::vec2 windowPos = Utils::toGlm(ImGui::GetWindowPos());
+      glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
+      glm::vec2 mousePosInWindow = mousePos - windowPos;
+
+      auto [minT, selectedID, hitPos] = _model.select(camera, width, height, mousePosInWindow);
+      if (selectedID >= 0 && selectedID < _model.n_faces()) {
+        // TODO: implement delete
+        _model.selectRadius(selectedID, _brushRadius, true);
+        _solved = false;
+      }
+    }
   }
 }
