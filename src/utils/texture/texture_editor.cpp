@@ -111,7 +111,6 @@ void TextureEditor::controls() {
   {
     if (_autoCalculate && !_solved) {
 
-      // TODO: use another thread to calculate
       _model.calculateParameterization(_solvingMode, 0.0f);
       _solved = true;
     }
@@ -216,19 +215,27 @@ void TextureEditor::handleTextureInput() {
 
 void TextureEditor::handleBrushInput(const Camera &camera, float width, float height) {
 
+  // TODO: display brush shadow
   if (ImGui::IsWindowHovered()) {
+
+    bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+
     // handle select mesh face
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    if (isLeftDown || isRightDown) {
+
       glm::vec2 windowPos = Utils::toGlm(ImGui::GetWindowPos());
       glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
       glm::vec2 mousePosInWindow = mousePos - windowPos;
-
       auto [minT, selectedID, hitPos] = _model.select(camera, width, height, mousePosInWindow);
+
       if (selectedID >= 0 && selectedID < _model.n_faces()) {
-        // TODO: implement delete
-        _model.selectRadius(selectedID, _brushRadius, true);
-        _solved = false;
+        _model.selectRadius(selectedID, _brushRadius, isLeftDown);
       }
+    }
+
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) || ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
+      _solved = false;
     }
   }
 }

@@ -38,7 +38,7 @@ private:
 
   SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
   bool _solved = false;
-  bool _autoCalculate = false;
+  bool _autoCalculate = true;
 
 private:
   // texture

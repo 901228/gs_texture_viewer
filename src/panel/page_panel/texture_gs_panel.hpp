@@ -8,14 +8,12 @@
 #include "page_panel.hpp"
 
 #include "gaussian/view/gs_view.hpp"
-#include "utils/mesh/solve_uv.hpp"
 
 #include "rasterizer/texture_rasterizer.hpp"
 
 class TextureEditor;
 class TextureGaussianModel;
 class Camera;
-class FrameBufferHelper;
 
 class TextureGSPanel : public PagePanel {
 public:

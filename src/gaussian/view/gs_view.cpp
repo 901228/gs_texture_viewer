@@ -40,7 +40,7 @@ void GaussianView::_initInterop() {
     _useInterop &= (cudaGetLastError() == cudaSuccess);
   }
 
-  INFO("Interop: {}", _useInterop ? "true" : "false");
+  DEBUG("Interop: {}", _useInterop ? "true" : "false");
   if (!_useInterop) {
     fallback_bytes.resize(_width * _height * 3 * sizeof(float));
     cudaMalloc(&fallbackBufferCuda, fallback_bytes.size());

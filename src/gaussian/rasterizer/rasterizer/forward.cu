@@ -298,7 +298,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
   uint32_t last_contributor = 0;
   float C[CHANNELS] = {0};
 
-  bool found = !(inside && mask != nullptr && mask[pix_id].mask > 0);
+  bool found = !(mask != nullptr && mask[pix_id].mask != 0);
   float mesh_depth = found ? FLT_MAX : mask[pix_id].depth;
   bool visible = false;
 
@@ -395,6 +395,12 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
         out_color[2 * H * W + pix_id] = color.z;
       }
     }
+
+    // if (mask != nullptr && mask[pix_id].mask != 0) {
+    //   out_color[0 * H * W + pix_id] = 1.0f;
+    //   out_color[1 * H * W + pix_id] = 0.0f;
+    //   out_color[2 * H * W + pix_id] = 0.0f;
+    // }
   }
 }
 

@@ -126,15 +126,16 @@ void TextureGSPanel::_controls() {
 
       _textureGaussianModel->controls();
 
-      ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureRenderMode),
-                   Utils::enumToCombo<CudaRasterizer::RenderingMode>().c_str());
-
       camera->controls(_textureGaussianModel->center());
 
       ImGui::EndTabItem();
     }
 
     if (ImGui::BeginTabItem("textures")) {
+
+      ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureRenderMode),
+                   Utils::enumToCombo<CudaRasterizer::RenderingMode>().c_str());
+      ImGui::NewLine();
 
       _textureEditor->controls();
 
