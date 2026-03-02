@@ -37,6 +37,7 @@ target_compile_definitions(imgui PUBLIC IMGUI_DEFINE_MATH_OPERATORS)
 target_include_directories(imgui PUBLIC "imgui/")
 target_include_directories(imgui PUBLIC "imgui/backends/")
 target_include_directories(imgui PUBLIC "imguizmo")
+target_link_libraries(imgui PUBLIC glfw)
 
 add_subdirectory(OpenMesh)
 add_subdirectory(eigen)

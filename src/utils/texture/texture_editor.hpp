@@ -8,7 +8,7 @@
 
 #include <glm/glm.hpp>
 
-#include "../texture/texture.hpp"
+#include "texture.hpp"
 
 class TextureEditor {
 private:

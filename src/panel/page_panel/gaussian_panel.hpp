@@ -7,7 +7,7 @@
 
 #include "page_panel.hpp"
 
-#include "../gaussian/view/gs_view.hpp"
+#include "gaussian/view/gs_view.hpp"
 
 class Camera;
 

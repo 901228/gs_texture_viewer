@@ -9,7 +9,7 @@
 
 #include "page_panel.hpp"
 
-#include "../utils/mesh/solve_uv.hpp"
+#include "utils/mesh/solve_uv.hpp"
 
 class Model;
 class Camera;

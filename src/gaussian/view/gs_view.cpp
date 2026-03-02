@@ -6,11 +6,11 @@
 
 #include "../model/gs_model.hpp"
 #include "../model/utils.hpp"
-#include "../utils/camera/camera.hpp"
-#include "../utils/logger.hpp"
 #include "renderer/ellipsoid_renderer.hpp"
 #include "renderer/gaussian_renderer.hpp"
 #include "renderer/point_renderer.hpp"
+#include "utils/camera/camera.hpp"
+#include "utils/logger.hpp"
 
 GaussianView::GaussianView() {
 

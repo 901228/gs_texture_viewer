@@ -2,11 +2,11 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../utils/camera/camera.hpp"
 #include "gs_gl_data.hpp"
 #include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
+#include "utils/camera/camera.hpp"
 
 #include "rasterizer/rasterizer.hpp"
 

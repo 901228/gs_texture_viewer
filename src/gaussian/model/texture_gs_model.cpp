@@ -3,12 +3,12 @@
 #include <ranges>
 #include <utility>
 
-#include "../utils/camera/camera.hpp"
-#include "../utils/utils.hpp"
 #include "gs_model.hpp"
 #include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
+#include "utils/camera/camera.hpp"
+#include "utils/utils.hpp"
 
 #include "rasterizer/rasterizer.hpp"
 

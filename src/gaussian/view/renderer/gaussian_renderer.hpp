@@ -7,8 +7,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "../utils/gl/frameBufferHelper.hpp"
-#include "../utils/gl/program.hpp"
+#include "utils/gl/frameBufferHelper.hpp"
+#include "utils/gl/program.hpp"
 
 class GaussianRenderer {
 

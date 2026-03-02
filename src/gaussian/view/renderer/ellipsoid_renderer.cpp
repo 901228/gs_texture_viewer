@@ -3,9 +3,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../utils/camera/camera.hpp"
-#include "../utils/logger.hpp"
-#include "model/gs_gl_data.hpp"
+#include "../../model/gs_gl_data.hpp"
+#include "utils/camera/camera.hpp"
+#include "utils/logger.hpp"
 
 EllipsoidRenderer::EllipsoidRenderer() {
 

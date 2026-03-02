@@ -35,7 +35,7 @@ endif()
 add_subdirectory(extern)
 
 # GAUSSIAN_LIB
-add_subdirectory(src/gaussian)
+add_subdirectory(src/gaussian/rasterizer)
 
 # main source code
 add_subdirectory(src)

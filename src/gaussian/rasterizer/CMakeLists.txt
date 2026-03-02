@@ -39,14 +39,6 @@ add_library(GAUSSIAN_LIB STATIC
 
   rasterizer/vector/matrix.hpp
   rasterizer/vector/vector.hpp
-
-  model/gs_model.cpp
-  model/texture_gs_model.cpp
-
-  view/gs_view.cpp
-  view/renderer/ellipsoid_renderer.cpp
-  view/renderer/point_renderer.cpp
-  view/renderer/gaussian_renderer.cpp
 )
 
 # CUDA Separable Compilation
@@ -56,7 +48,7 @@ set_target_properties(GAUSSIAN_LIB PROPERTIES
 )
 
 # link libraries
-target_link_libraries(GAUSSIAN_LIB PRIVATE glad imgui OpenMeshCore OpenMeshTools magic_enum::magic_enum)
+target_link_libraries(GAUSSIAN_LIB PRIVATE glm::glm)
 
 # link CUDA runtime
 target_link_libraries(GAUSSIAN_LIB PUBLIC CUDA::cudart)

@@ -8,7 +8,7 @@
 
 #include <cuda_runtime.h>
 
-#include "../utils/logger.hpp"
+#include "utils/logger.hpp"
 
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                             \
   A;                                                                                                         \

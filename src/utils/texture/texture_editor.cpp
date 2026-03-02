@@ -6,8 +6,8 @@
 #include <imgui.h>
 
 #include "../utils.hpp"
-#include "../utils/imgui/image_selectable.hpp"
-#include "../utils/imgui/tool_line.hpp"
+#include "../imgui/image_selectable.hpp"
+#include "../imgui/tool_line.hpp"
 
 TextureEditor::TextureEditor(const std::string &textureListPath, float scaleStep, float scaleMin,
                              float scaleMax)

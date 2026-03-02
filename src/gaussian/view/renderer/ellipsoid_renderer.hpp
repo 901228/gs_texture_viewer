@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 
-#include "../utils/gl/program.hpp"
+#include "utils/gl/program.hpp"
 
 class Camera;
 class GaussianGLData;

@@ -1,6 +1,6 @@
 #include "gaussian_renderer.hpp"
 
-#include "../utils/logger.hpp"
+#include "utils/logger.hpp"
 
 GaussianRenderer::GaussianRenderer() {
 

@@ -6,11 +6,11 @@
 
 #include <memory>
 
-#include "../gaussian/model/texture_gs_model.hpp"
-#include "../utils/camera/trackball_camera.hpp"
-#include "../utils/mesh/model.hpp"
-#include "../utils/texture/texture_editor.hpp"
-#include "../utils/utils.hpp"
+#include "gaussian/model/texture_gs_model.hpp"
+#include "utils/camera/trackball_camera.hpp"
+#include "utils/mesh/model.hpp"
+#include "utils/texture/texture_editor.hpp"
+#include "utils/utils.hpp"
 
 TextureGSPanel::TextureGSPanel() : _textureGaussianModel(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
@@ -63,7 +63,7 @@ void TextureGSPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        auto [_, selectedID, _] =
+        auto [minT, selectedID, hitPos] =
             _textureGaussianModel->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < _textureGaussianModel->n_faces()) {
           _textureGaussianModel->selectRadius(selectedID, brushRadius, true);

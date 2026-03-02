@@ -1,8 +1,8 @@
 #include "point_renderer.hpp"
 
-#include "../utils/camera/camera.hpp"
-#include "../utils/logger.hpp"
-#include "model/gs_gl_data.hpp"
+#include "../../model/gs_gl_data.hpp"
+#include "utils/camera/camera.hpp"
+#include "utils/logger.hpp"
 
 PointRenderer::PointRenderer() {
 

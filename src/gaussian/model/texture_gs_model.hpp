@@ -2,8 +2,8 @@
 #define TEXTURE_GS_MODEL_HPP
 #pragma once
 
-#include "../utils/mesh/model.hpp"
 #include "gs_model.hpp"
+#include "utils/mesh/model.hpp"
 
 #include "rasterizer/texture_rasterizer.hpp"
 

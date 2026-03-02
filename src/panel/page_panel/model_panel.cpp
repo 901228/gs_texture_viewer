@@ -2,12 +2,12 @@
 
 #include <glad/gl.h>
 
-#include "../main_window.hpp"
-#include "../utils/camera/trackball_camera.hpp"
-#include "../utils/imgui/opengl.hpp"
-#include "../utils/mesh/model.hpp"
-#include "../utils/texture/texture_editor.hpp"
-#include "../utils/utils.hpp"
+#include "main_window.hpp"
+#include "utils/camera/trackball_camera.hpp"
+#include "utils/imgui/opengl.hpp"
+#include "utils/mesh/model.hpp"
+#include "utils/texture/texture_editor.hpp"
+#include "utils/utils.hpp"
 
 ModelPanel::ModelPanel() : model(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
@@ -57,7 +57,8 @@ void ModelPanel::_render() {
         ImVec2 mousePos = ImGui::GetMousePos();
         ImVec2 mousePosInWindow = ImVec2(mousePos.x - windowPos.x, mousePos.y - windowPos.y);
 
-        auto [_, selectedID, _] = model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
+        auto [minT, selectedID, hitPos] =
+            model->select(*camera, _width, _height, Utils::toGlm(mousePosInWindow));
         if (selectedID >= 0 && selectedID < model->n_faces()) {
           // TODO: implement delete
           model->selectRadius(selectedID, brushRadius, true);

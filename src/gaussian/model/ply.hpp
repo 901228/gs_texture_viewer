@@ -17,8 +17,8 @@
 #define _USE_MATH_DEFINES
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 
-#include "../utils/logger.hpp"
-#include "../utils/mesh/mesh.hpp"
+#include "utils/logger.hpp"
+#include "utils/mesh/mesh.hpp"
 
 #define MAX_SH_DEGREE 3
 #define MAX_SH_COEFF ((MAX_SH_DEGREE + 1) * (MAX_SH_DEGREE + 1))

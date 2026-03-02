@@ -2,11 +2,10 @@
 
 #include "gaussian_panel.hpp"
 
-#include "../gaussian/model/gs_model.hpp"
-#include "../utils/camera/imguizmo_camera.hpp"
-#include "../utils/logger.hpp"
-#include "../utils/utils.hpp"
-#include "imgui.h"
+#include "gaussian/model/gs_model.hpp"
+#include "utils/camera/imguizmo_camera.hpp"
+#include "utils/logger.hpp"
+#include "utils/utils.hpp"
 
 GaussianPanel::GaussianPanel() : _gsModel(nullptr), camera(nullptr) {}
 
