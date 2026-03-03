@@ -138,8 +138,8 @@ public:
 
 namespace ImGui {
 
-inline ImPool<float> ToolLineAngleAnchorPool; // NOLINT(cert-err58-cpp)
-inline ImPool<float> ToolLineAngleValuePool;  // NOLINT(cert-err58-cpp)
+static ImPool<float> ToolLineAngleAnchorPool; // NOLINT(cert-err58-cpp)
+static ImPool<float> ToolLineAngleValuePool;  // NOLINT(cert-err58-cpp)
 
 bool ToolLineAngle(const char *label, float *angle, ImVec2 origin, bool *isConfirm, float segmentLength,
                    float lineWidth, ImColor lineColor) {

@@ -175,7 +175,7 @@ void MainWindow::Destroy() {
 
   // OnDestroy
   panels.clear();
-  ImGui::fboData.Clear();
+  ImGui::ClearOpenGL();
 
   NFD_Quit();
   ImGui_ImplOpenGL3_Shutdown();
