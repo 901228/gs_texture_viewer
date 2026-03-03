@@ -7,7 +7,7 @@
 
 #include <glm/trigonometric.hpp>
 
-#include <imgui_internal.h>
+#include <ImGui/imgui_internal.h>
 
 #include <stb_image.h>
 

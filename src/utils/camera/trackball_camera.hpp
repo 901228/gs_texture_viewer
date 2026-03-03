@@ -1,3 +1,7 @@
+/**
+ * Reference: https://raw.org/code/trackball-rotation-using-quaternions/
+ */
+
 #ifndef TRACKBALL_CAMERA_HPP
 #define TRACKBALL_CAMERA_HPP
 #pragma once

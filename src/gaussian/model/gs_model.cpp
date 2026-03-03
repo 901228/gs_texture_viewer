@@ -2,8 +2,9 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include <ImGui/imgui.h>
+
 #include "gs_gl_data.hpp"
-#include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
 #include "utils/camera/camera.hpp"

@@ -11,7 +11,7 @@
 // glad should be included before glfw
 #include <GLFW/glfw3.h>
 
-#include <imgui.h>
+#include <ImGui/imgui.h>
 
 class PagePanel;
 

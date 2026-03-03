@@ -3,8 +3,9 @@
 #include <ranges>
 #include <utility>
 
+#include <ImGui/imgui.h>
+
 #include "gs_model.hpp"
-#include "imgui.h"
 #include "ply.hpp"
 #include "utils.hpp"
 #include "utils/camera/camera.hpp"

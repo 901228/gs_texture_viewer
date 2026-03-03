@@ -2,10 +2,10 @@
 
 #include <glad/gl.h>
 
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include <ImGui/backends/imgui_impl_glfw.h>
+#include <ImGui/backends/imgui_impl_opengl3.h>
 
-#include <imgui.h>
+#include <ImGui/imgui.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

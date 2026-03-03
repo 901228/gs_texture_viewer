@@ -9,7 +9,7 @@
 
 #include <glm/glm.hpp>
 
-#include <imgui.h>
+#include <ImGui/imgui.h>
 
 #include <magic_enum/magic_enum.hpp>
 

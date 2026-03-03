@@ -1,6 +1,6 @@
 #include "imguizmo_camera.hpp"
 
-#include <ImGuizmo.h>
+#include <ImGuizmo/ImGuizmo.h>
 
 ImGuizmoCamera::ImGuizmoCamera(float cameraDistance, ImGuizmoCameraSettings settings)
     : Camera(settings), _cameraDistance(std::abs(cameraDistance)) {

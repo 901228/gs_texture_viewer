@@ -2,11 +2,12 @@
 #define CAMERA_HPP
 #pragma once
 
+#include <cstdio>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <cstdio>
-#include <imgui.h>
+#include <ImGui/imgui.h>
 
 class CameraSettings {
 public:

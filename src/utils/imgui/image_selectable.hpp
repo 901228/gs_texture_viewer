@@ -4,8 +4,8 @@
 
 #include <string>
 
-#include <imgui.h>
-#include <imgui_internal.h>
+#include <ImGui/imgui.h>
+#include <ImGui/imgui_internal.h>
 
 namespace ImGui {
 

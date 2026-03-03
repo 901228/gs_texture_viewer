@@ -2,9 +2,9 @@
 
 #include "texture_gs_panel.hpp"
 
-#include <imgui.h>
-
 #include <memory>
+
+#include <ImGui/imgui.h>
 
 #include "gaussian/model/texture_gs_model.hpp"
 #include "utils/camera/trackball_camera.hpp"

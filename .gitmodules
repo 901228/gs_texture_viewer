@@ -22,11 +22,11 @@
 [submodule "extern/glfw"]
 	path = extern/glfw
 	url = https://github.com/glfw/glfw.git
-[submodule "extern/imgui"]
-	path = extern/imgui
+[submodule "extern/imgui/ImGui"]
+	path = extern/imgui/ImGui
 	url = https://github.com/ocornut/imgui.git
-[submodule "extern/imguizmo"]
-	path = extern/imguizmo
+[submodule "extern/imgui/ImGuizmo"]
+	path = extern/imgui/ImGuizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
 [submodule "extern/magic_enum"]
 	path = extern/magic_enum
