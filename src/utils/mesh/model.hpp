@@ -28,7 +28,7 @@ public:
 protected:
   MyMesh _mesh;
 
-private:
+protected:
   std::unique_ptr<Program> _renderingProgram;
   std::unique_ptr<Program> _selectingProgram;
   unsigned int _vertexArrayObject = 0;
@@ -39,7 +39,7 @@ private:
 protected:
   // model
   bool loadModel(const char *path);
-  void initMesh(bool toGL = true);
+  virtual void initMesh();
   [[nodiscard]] inline const std::vector<glm::vec3> &vertices() const { return _vertices; }
 
 public:
@@ -81,7 +81,7 @@ public:
   getSelectedTextureCoords() const;
 
 protected:
-  virtual glm::vec2 *updateTexcoordVAO(bool returnData);
+  virtual void updateTexcoordVAO();
 };
 
 #endif // !MODEL_HPP

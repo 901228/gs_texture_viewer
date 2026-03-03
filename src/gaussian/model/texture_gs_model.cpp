@@ -7,6 +7,7 @@
 
 #include "gs_model.hpp"
 #include "ply.hpp"
+#include "rasterizer/texture_rasterizer.hpp"
 #include "utils.hpp"
 #include "utils/camera/camera.hpp"
 #include "utils/utils.hpp"
@@ -19,7 +20,6 @@ TextureGaussianModel::TextureGaussianModel(const char *geometryPlyPath, const ch
 
   _loadPly(geometryPlyPath, appearancePlyPath);
   initMesh();
-  initModelForCuda();
 }
 
 TextureGaussianModel::~TextureGaussianModel() {
@@ -29,6 +29,7 @@ TextureGaussianModel::~TextureGaussianModel() {
   cudaFree(_model_proj_cuda);
   cudaFree(_model_position_cuda);
   cudaFree(_model_texCoords_cuda);
+  cudaFree(_model_normal_cuda);
   cudaFree(_model_sl_cuda);
   cudaFree(_model_face_mask_cuda);
 
@@ -121,7 +122,22 @@ void TextureGaussianModel::_loadPly(const char *geometryPlyPath, const char *app
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_rect_cuda, 2 * (gsCount + _gsCountA) * sizeof(int)));
 }
 
-void TextureGaussianModel::initModelForCuda() {
+void TextureGaussianModel::initMesh() {
+
+  _bvh.build(_mesh);
+
+  _vertices.clear();
+  _normal.clear();
+
+  for (const MyMesh::FaceHandle &fh : _mesh.faces()) {
+
+    for (const MyMesh::VertexHandle &vh : _mesh.fv_range(fh)) {
+      _vertices.emplace_back(Utils::toGlm(_mesh.point(vh)));
+      _mesh.set_texcoord2D(vh, {0, 0});
+    }
+
+    _normal.emplace_back(Utils::toGlm(_mesh.normal(fh)));
+  }
 
   std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_vertices(), {0, 0});
   std::vector<cudaTextureObject_t> selectIdx(n_faces(), 0);
@@ -133,6 +149,9 @@ void TextureGaussianModel::initModelForCuda() {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_texCoords_cuda, sizeof(glm::vec2) * n_vertices()));
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_texCoords_cuda, textureCoord.data(),
                                    sizeof(glm::vec2) * n_vertices(), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_normal_cuda, sizeof(glm::vec3) * n_faces()));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMemcpy(_model_normal_cuda, _normal.data(), sizeof(glm::vec3) * n_faces(), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_sl_cuda, sizeof(cudaTextureObject_t) * n_faces()));
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * n_faces(),
                                    cudaMemcpyHostToDevice));
@@ -185,9 +204,10 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
                             cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(cudaMemcpy(_model_proj_cuda, glm::value_ptr(camera.projectionMatrix()), sizeof(glm::mat4),
                             cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(CudaRasterizer::makeMask(_model_position_cuda, _model_texCoords_cuda, n_vertices(),
-                                          _model_sl_cuda, n_faces(), _model_face_mask_cuda, width, height,
-                                          _model_view_cuda, _model_proj_cuda, _mask_cuda));
+  CUDA_SAFE_CALL(CudaRasterizer::makeMask(
+      _model_position_cuda, _model_texCoords_cuda, n_vertices(), _model_normal_cuda, _model_sl_cuda,
+      n_faces(), _model_face_mask_cuda, width, height, _model_view_cuda, _model_proj_cuda, _cam_pos_cuda,
+      textureOption.cullingMode, _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
@@ -225,20 +245,36 @@ void TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {
                                    sizeof(std::uint8_t) * n_faces(), cudaMemcpyHostToDevice));
 }
 
-glm::vec2 *TextureGaussianModel::updateTexcoordVAO(bool returnData) {
+void TextureGaussianModel::updateTexcoordVAO() {
 
-  auto data = Model::updateTexcoordVAO(true);
+  // update texcoord VAO buffer
+  const size_t size = n_vertices();
+  auto *data = new glm::vec2[size];
+
+  // copy from CUDA
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMemcpy(data, _model_texCoords_cuda, sizeof(glm::vec2) * n_vertices(), cudaMemcpyDeviceToHost));
+
+  int index = -1;
+  for (const MyMesh::FaceHandle fh : _mesh.faces()) {
+
+    for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
+
+      const MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(vh);
+      index++;
+
+      if (data[index].x != -1 || data[index].y != -1) {
+
+        if (_selectedID->find(fh.idx()) == _selectedID->end())
+          continue;
+      }
+      data[index] = {texCoord[0], texCoord[1]};
+    }
+  }
 
   // copy to CUDA
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_model_texCoords_cuda, data, sizeof(glm::vec2) * n_vertices(), cudaMemcpyHostToDevice));
-
-  if (returnData) {
-    return data;
-  } else {
-    delete[] data;
-    return nullptr;
-  };
 }
 
 void TextureGaussianModel::clearSelect() {

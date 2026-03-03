@@ -50,14 +50,15 @@ public:
 
 private:
   // model
-  glm::vec2 *updateTexcoordVAO(bool returnData) override;
+  void updateTexcoordVAO() override;
 
 private:
   float _threshold = 0.002f;
 
 private:
   // for CUDA
-  void initModelForCuda();
+  std::vector<glm::vec3> _normal;
+  void initMesh() override;
 
 private:
   // screen mask
@@ -67,6 +68,7 @@ private:
   float *_model_proj_cuda = nullptr;
   float *_model_position_cuda = nullptr;
   float *_model_texCoords_cuda = nullptr;
+  float *_model_normal_cuda = nullptr;
   cudaTextureObject_t *_model_sl_cuda = nullptr;
   std::uint8_t *_model_face_mask_cuda = nullptr;
 

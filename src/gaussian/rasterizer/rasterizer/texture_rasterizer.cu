@@ -42,10 +42,15 @@ __device__ uint32_t float_to_uint_depth(float f) {
 }
 
 // for each triangle
-__global__ void render(const float3 *__restrict__ position, const rs::vec4 *__restrict__ clip_pos,
-                       const float2 *__restrict__ texCoords, const cudaTextureObject_t *__restrict__ sl,
-                       int num_triangles, const uint8_t *__restrict__ face_mask, int width, int height,
+__global__ void render(const float3 *__restrict__ position,        // per-vertex
+                       const rs::vec4 *__restrict__ clip_pos,      // per-vertex
+                       const float2 *__restrict__ texCoords,       // per-vertex
+                       const float3 *__restrict__ normal,          // per-face
+                       const cudaTextureObject_t *__restrict__ sl, // per-face
+                       int num_triangles, const float *__restrict__ viewpos,
+                       const uint8_t *__restrict__ face_mask, int width, int height,
                        uint32_t *__restrict__ depth_buffer, // temp uint depth buffer for atomicMin
+                       CudaRasterizer::MaskCullingMode maskCullingMode,
                        CudaRasterizer::PixelMask *__restrict__ mask) {
   unsigned int prim_id = blockIdx.x * blockDim.x + threadIdx.x;
   if (prim_id >= num_triangles)
@@ -58,6 +63,19 @@ __global__ void render(const float3 *__restrict__ position, const rs::vec4 *__re
   int i0 = static_cast<int>(prim_id) * 3 + 0;
   int i1 = static_cast<int>(prim_id) * 3 + 1;
   int i2 = static_cast<int>(prim_id) * 3 + 2;
+
+  if (maskCullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) {
+
+    // extract world position of each triangle vertex
+    rs::vec3 p0{position[i0]};
+    rs::vec3 p1{position[i1]};
+    rs::vec3 p2{position[i2]};
+    rs::vec3 face_center = (p0 + p1 + p2) / 3.0f;
+
+    rs::vec3 viewDir = rs::normalize(rs::vec3(viewpos) - face_center);
+    if (rs::dot(rs::vec3(normal[prim_id]), viewDir) <= 0)
+      return;
+  }
 
   // extract clip position of each triangle vertex
   rs::vec4 c0 = clip_pos[i0];
@@ -155,8 +173,9 @@ __global__ void render(const float3 *__restrict__ position, const rs::vec4 *__re
 } // namespace
 
 void CudaRasterizer::makeMask(const float *position, const float *texCoords, int num_vertices,
-                              const cudaTextureObject_t *sl, int num_triangles, const uint8_t *face_mask,
-                              int width, int height, const float *viewmatrix, const float *projmatrix,
+                              const float *normal, const cudaTextureObject_t *sl, int num_triangles,
+                              const uint8_t *face_mask, int width, int height, const float *viewmatrix,
+                              const float *projmatrix, const float *viewpos, MaskCullingMode maskCullingMode,
                               PixelMask *mask) {
 
   rs::vec4 *clip_pos;
@@ -178,8 +197,9 @@ void CudaRasterizer::makeMask(const float *position, const float *texCoords, int
                                                     clip_pos);
 
   // ── Rasterize + Fragment Shader ──
-  render<<<(num_triangles + 255) / 256, 256>>>((float3 *)position, clip_pos, (float2 *)texCoords, sl,
-                                               num_triangles, face_mask, width, height, d_depth, mask);
+  render<<<(num_triangles + 255) / 256, 256>>>((float3 *)position, clip_pos, (float2 *)texCoords,
+                                               (float3 *)normal, sl, num_triangles, viewpos, face_mask, width,
+                                               height, d_depth, maskCullingMode, mask);
 
   cudaFree(clip_pos);
   cudaFree(d_depth);

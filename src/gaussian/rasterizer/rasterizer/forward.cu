@@ -375,7 +375,9 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
       out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
 
     // read mask
-    if (visible) {
+    if ((textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
+        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling && mask != nullptr &&
+         mask[pix_id].mask != 0)) {
 
       const CudaRasterizer::PixelMask &m = mask[pix_id];
 

@@ -11,6 +11,10 @@
 
 namespace rasterizer {
 
+struct vec2;
+struct vec3;
+struct vec4;
+
 __host__ __device__ inline float max(float a, float b) { return fmaxf(a, b); }
 __host__ __device__ inline int max(int a, int b) { return a > b ? a : b; }
 
@@ -27,9 +31,18 @@ struct vec2 {
   __host__ __device__ vec2() : x(0), y(0) {}
   __host__ __device__ explicit vec2(const float &val) : x(val), y(val) {}
   __host__ __device__ vec2(const float &x, const float &y) : x(x), y(y) {}
+  __host__ __device__ explicit vec2(const float *val) : x(val[0]), y(val[1]) {}
 
   __host__ __device__ explicit vec2(const float2 &val) : x(val.x), y(val.y) {}
   __host__ __device__ explicit vec2(const glm::vec2 &val) : x(val.x), y(val.y) {}
+
+  __host__ __device__ explicit vec2(const float3 &val) : x(val.x), y(val.y) {}
+  __host__ __device__ explicit vec2(const glm::vec3 &val) : x(val.x), y(val.y) {}
+  __host__ __device__ explicit vec2(const vec3 &val);
+
+  __host__ __device__ explicit vec2(const float4 &val) : x(val.x), y(val.y) {}
+  __host__ __device__ explicit vec2(const glm::vec4 &val) : x(val.x), y(val.y) {}
+  __host__ __device__ explicit vec2(const vec4 &val);
 
   __host__ __device__ explicit operator float2() const { return {x, y}; }
 
@@ -115,8 +128,12 @@ __host__ __device__ inline vec2 max(const vec2 &a, const vec2 &b) { return {max(
 __host__ __device__ inline vec2 max(const vec2 &a, float val) { return {max(a.x, val), max(a.y, val)}; }
 
 __host__ __device__ inline vec2 min(const vec2 &a, const vec2 &b) { return {min(a.x, b.x), min(a.y, b.y)}; }
-
 __host__ __device__ inline vec2 min(const vec2 &a, float val) { return {min(a.x, val), min(a.y, val)}; }
+
+__host__ __device__ inline float length(const vec2 &v) { return v.length(); }
+__host__ __device__ inline vec2 normalize(const vec2 &a) { return a.normalized(); }
+
+__host__ __device__ inline float dot(const vec2 &a, const vec2 &b) { return a.x * b.x + a.y * b.y; }
 
 struct vec3 {
   float x, y, z;
@@ -125,9 +142,14 @@ struct vec3 {
   __host__ __device__ vec3() : x(0), y(0), z(0) {}
   __host__ __device__ explicit vec3(const float &val) : x(val), y(val), z(val) {}
   __host__ __device__ vec3(const float &x, const float &y, const float &z) : x(x), y(y), z(z) {}
+  __host__ __device__ explicit vec3(const float *val) : x(val[0]), y(val[1]), z(val[2]) {}
 
   __host__ __device__ explicit vec3(const float3 &val) : x(val.x), y(val.y), z(val.z) {}
   __host__ __device__ explicit vec3(const glm::vec3 &val) : x(val.x), y(val.y), z(val.z) {}
+
+  __host__ __device__ explicit vec3(const float4 &val) : x(val.x), y(val.y), z(val.z) {}
+  __host__ __device__ explicit vec3(const glm::vec4 &val) : x(val.x), y(val.y), z(val.z) {}
+  __host__ __device__ explicit vec3(const vec4 &val);
 
   __host__ __device__ explicit operator float3() const { return {x, y, z}; }
 
@@ -249,6 +271,13 @@ __host__ __device__ inline vec3 min(const vec3 &a, float val) {
   return {min(a.x, val), min(a.y, val), min(a.z, val)};
 }
 
+__host__ __device__ inline float length(const vec3 &v) { return v.length(); }
+__host__ __device__ inline vec3 normalize(const vec3 &a) { return a.normalized(); }
+
+__host__ __device__ inline float dot(const vec3 &a, const vec3 &b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
 struct vec4 {
   float x, y, z, w;
 
@@ -257,6 +286,7 @@ struct vec4 {
   __host__ __device__ explicit vec4(const float &val) : x(val), y(val), z(val), w(val) {}
   __host__ __device__ vec4(const float &x, const float &y, const float &z, const float &w)
       : x(x), y(y), z(z), w(w) {}
+  __host__ __device__ explicit vec4(const float *val) : x(val[0]), y(val[1]), z(val[2]), w(val[3]) {}
 
   __host__ __device__ explicit vec4(const glm::vec4 &val) : x(val.x), y(val.y), z(val.z), w(val.w) {}
 
@@ -392,8 +422,16 @@ __host__ __device__ inline vec4 min(const vec4 &a, float val) {
   return {min(a.x, val), min(a.y, val), min(a.z, val), min(a.w, val)};
 }
 
-__host__ __device__ inline float length(const vec3 &v) { return v.length(); }
 __host__ __device__ inline float length(const vec4 &v) { return v.length(); }
+__host__ __device__ inline vec4 normalize(const vec4 &a) { return a.normalized(); }
+
+__host__ __device__ inline float dot(const vec4 &a, const vec4 &b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+__host__ __device__ inline vec2::vec2(const vec3 &val) : x(val.x), y(val.y) {}
+__host__ __device__ inline vec2::vec2(const vec4 &val) : x(val.x), y(val.y) {}
+__host__ __device__ inline vec3::vec3(const vec4 &val) : x(val.x), y(val.y), z(val.z) {}
 
 } // namespace rasterizer
 

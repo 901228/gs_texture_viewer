@@ -102,72 +102,61 @@ bool Model::loadModel(const char *path) {
   return false;
 }
 
-void Model::initMesh(bool toGL) {
+void Model::initMesh() {
 
   _bvh.build(_mesh);
 
   _vertices.clear();
-  if (!toGL) {
 
-    MyMesh::Point v;
-    for (const MyMesh::FaceHandle &i : _mesh.faces()) {
-      for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
-        _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
-        _mesh.set_texcoord2D(j, {0, 0});
-      }
+  std::vector<glm::vec3> normals;
+  for (const MyMesh::FaceHandle &i : _mesh.faces()) {
+    for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
+      _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
+      normals.emplace_back(Utils::toGlm(_mesh.normal(j)));
+      _mesh.set_texcoord2D(j, {0, 0});
     }
-  } else {
-
-    std::vector<glm::vec3> normals;
-    for (const MyMesh::FaceHandle &i : _mesh.faces()) {
-      for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
-        _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
-        normals.emplace_back(Utils::toGlm(_mesh.normal(j)));
-        _mesh.set_texcoord2D(j, {0, 0});
-      }
-    }
-
-    std::vector<GLint> selectIdx(n_faces() * 3, -1);
-    std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_faces() * 3, {0, 0});
-
-    glGenVertexArrays(1, &_vertexArrayObject);
-    glBindVertexArray(_vertexArrayObject);
-
-    _vertexBufferObject = new GLuint[4];
-    glGenBuffers(4, _vertexBufferObject);
-
-    glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[0]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_vertices.size() * sizeof(glm::vec3)), _vertices.data(),
-                 GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[1]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(normals.size() * sizeof(glm::vec3)), normals.data(),
-                 GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(textureCoord.size() * sizeof(glm::vec2)),
-                 textureCoord.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-    glEnableVertexAttribArray(2);
-
-    glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[3]);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<long>(selectIdx.size() * sizeof(GLint)), selectIdx.data(),
-                 GL_STATIC_DRAW);
-    // use "glVertexAttrib 'I' Pointer" for int
-    glVertexAttribIPointer(3, 1, GL_INT, 0, nullptr);
-    glEnableVertexAttribArray(3);
-
-    _elementAmount = static_cast<GLsizei>(n_faces() * 3);
-
-    INFO("faces count: {}", n_faces());
-    INFO("elementAmount: {}", _elementAmount);
-
-    unUse();
   }
+
+  std::vector<GLint> selectIdx(n_faces() * 3, -1);
+  std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_faces() * 3, {0, 0});
+
+  glGenVertexArrays(1, &_vertexArrayObject);
+  glBindVertexArray(_vertexArrayObject);
+
+  _vertexBufferObject = new GLuint[4];
+  glGenBuffers(4, _vertexBufferObject);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[0]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_vertices.size() * sizeof(glm::vec3)), _vertices.data(),
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnableVertexAttribArray(0);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[1]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(normals.size() * sizeof(glm::vec3)), normals.data(),
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnableVertexAttribArray(1);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(textureCoord.size() * sizeof(glm::vec2)),
+               textureCoord.data(), GL_STATIC_DRAW);
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnableVertexAttribArray(2);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[3]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(selectIdx.size() * sizeof(GLint)), selectIdx.data(),
+               GL_STATIC_DRAW);
+  // use "glVertexAttrib 'I' Pointer" for int
+  glVertexAttribIPointer(3, 1, GL_INT, 0, nullptr);
+  glEnableVertexAttribArray(3);
+
+  _elementAmount = static_cast<GLsizei>(n_faces() * 3);
+
+  INFO("faces count: {}", n_faces());
+  INFO("elementAmount: {}", _elementAmount);
+
+  unUse();
 }
 
 void Model::setupUniformsCommon(const Program &program, const Camera &camera) {
@@ -308,10 +297,10 @@ void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, float an
     return;
 
   SolveUV::Solve(solvingMode, *_selectedID, angle, _mesh);
-  updateTexcoordVAO(false);
+  updateTexcoordVAO();
 }
 
-glm::vec2 *Model::updateTexcoordVAO(bool returnData) {
+void Model::updateTexcoordVAO() {
 
   // update texcoord VAO buffer
   glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
@@ -339,13 +328,6 @@ glm::vec2 *Model::updateTexcoordVAO(bool returnData) {
 
   memcpy(ptr, data, sizeof(glm::vec2) * size);
   glUnmapBuffer(GL_ARRAY_BUFFER);
-
-  if (returnData) {
-    return data;
-  } else {
-    delete[] data;
-    return nullptr;
-  };
 }
 
 std::vector<TextureLine> Model::getSelectedTextureLines() {

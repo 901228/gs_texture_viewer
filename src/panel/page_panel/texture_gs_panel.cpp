@@ -50,7 +50,7 @@ void TextureGSPanel::_render() {
                                         {1.0f, 1.0f, 1.0f}, image_cuda,
                                         selectedTexture != nullptr ? selectedTexture->cudaTextureId() : 0,
                                         {_textureEditor->scale(), Utils::toFloat2(_textureEditor->offset()),
-                                         _textureEditor->theta(), _textureRenderMode});
+                                         _textureEditor->theta(), _textureRenderMode, _maskCullingMode});
         });
 
     ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)textureId, ImVec2(pos.x, pos.y),

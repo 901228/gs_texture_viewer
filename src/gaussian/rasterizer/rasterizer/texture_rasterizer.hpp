@@ -12,11 +12,14 @@ namespace CudaRasterizer {
 
 enum class RenderingMode : int { None, TextureCoords, Texture };
 
+enum class MaskCullingMode : int { DepthComparison, NormalCulling };
+
 struct TextureOption {
   float scale = 1;
   float2 offset = {};
   float theta = 0;
   RenderingMode mode = RenderingMode::None;
+  MaskCullingMode cullingMode = MaskCullingMode::DepthComparison;
 };
 
 struct PixelMask {
@@ -26,9 +29,10 @@ struct PixelMask {
   float depth;               // depth of each pixel
 };
 
-void makeMask(const float *position, const float *texCoords, int num_vertices, const cudaTextureObject_t *sl,
-              int num_triangles, const uint8_t *face_mask, int width, int height, const float *viewmatrix,
-              const float *projmatrix, PixelMask *mask);
+void makeMask(const float *position, const float *texCoords, int num_vertices, const float *normal,
+              const cudaTextureObject_t *sl, int num_triangles, const uint8_t *face_mask, int width,
+              int height, const float *viewmatrix, const float *projmatrix, const float *viewpos,
+              MaskCullingMode maskCullingMode, PixelMask *mask);
 
 } // namespace CudaRasterizer
 
