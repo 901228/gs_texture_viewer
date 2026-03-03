@@ -98,7 +98,7 @@ void TextureEditor::controls() {
   {
     ImGui::Checkbox("Auto Solve Texture Coords", &_autoCalculate);
     ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
-                 Utils::enumToCombo<SolveUV::SolvingMode>().c_str());
+                 Utils::enumToImGuiCombo<SolveUV::SolvingMode>().c_str());
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
       // TODO: implement angle ?
       _model.calculateParameterization(_solvingMode, 0.0f);

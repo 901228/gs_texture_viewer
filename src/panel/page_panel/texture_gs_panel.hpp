@@ -38,6 +38,7 @@ private:
   GaussianView::RenderingMode currMode = GaussianView::RenderingMode::Splats;
   std::unique_ptr<TextureGaussianModel> _textureGaussianModel;
   CudaRasterizer::RenderingMode _textureRenderMode = CudaRasterizer::RenderingMode::Texture;
+  CudaRasterizer::MaskCullingMode _maskCullingMode = CudaRasterizer::MaskCullingMode::DepthComparison;
 
 private:
   // texture

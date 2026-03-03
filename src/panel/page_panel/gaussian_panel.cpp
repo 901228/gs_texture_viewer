@@ -51,7 +51,7 @@ void GaussianPanel::_controls() {
     ImGui::Indent();
 
     if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
-                     Utils::enumToCombo<GaussianView::RenderingMode>().c_str())) {
+                     Utils::enumToImGuiCombo<GaussianView::RenderingMode>().c_str())) {
       DEBUG("change rendering mode to {}", Utils::name(currMode));
     }
 

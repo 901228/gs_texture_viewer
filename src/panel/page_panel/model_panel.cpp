@@ -95,7 +95,7 @@ void ModelPanel::_controls() {
       {
         ImGui::Checkbox("wire", &wire);
         ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
-                     Utils::enumToCombo<RenderingMode>().c_str());
+                     Utils::enumToImGuiCombo<RenderingMode>().c_str());
       }
       ImGui::NewLine();
 

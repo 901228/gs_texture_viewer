@@ -27,7 +27,7 @@ inline glm::vec2 toGlm(const MyMesh::TexCoord2D &p) { return {p[0], p[1]}; }
 
 inline float2 toFloat2(const glm::vec2 &v) { return {v.x, v.y}; }
 
-template <typename EnumType> inline std::string enumToCombo() {
+template <typename EnumType> inline std::string enumToImGuiCombo() {
 
   std::string result;
   for (const std::string_view _name : magic_enum::enum_names<EnumType>()) {
