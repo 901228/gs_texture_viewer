@@ -9,9 +9,10 @@
 #include "../imgui/tool_line.hpp"
 #include "../utils.hpp"
 
-TextureEditor::TextureEditor(Model &model, const std::string &textureListPath, float scaleStep,
+TextureEditor::TextureEditor(Model &model, const std::string_view textureListPath, float scaleStep,
                              float scaleMin, float scaleMax)
-    : _model(model), _textureList(ImageTexture::loadTextureList(textureListPath)), _scaleStep(scaleStep),
+    : _model(model), _textureListPath(textureListPath),
+      _textureList(ImageTexture::loadTextureList(textureListPath)), _scaleStep(scaleStep),
       _scaleMin(scaleMin), _scaleMax(scaleMax) {}
 
 TextureEditor::~TextureEditor() = default;
@@ -138,7 +139,7 @@ bool TextureEditor::add(const std::string &imagePath) {
   }
 
   _textureList.push_back(ImageTexture::create(imagePath));
-  ImageTexture::saveTextureList(_textureList);
+  ImageTexture::saveTextureList(_textureList, _textureListPath);
 
   return true;
 }

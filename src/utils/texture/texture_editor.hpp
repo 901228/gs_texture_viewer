@@ -14,10 +14,12 @@
 
 class TextureEditor {
 private:
-  constexpr static std::string_view textureListPath = PROJECT_DIR "textures.toml";
+  constexpr static std::string_view textureListPath = PROJECT_DIR "/textures.toml";
+  std::string_view _textureListPath;
 
 public:
-  explicit TextureEditor(Model &model, const std::string &textureListPath = "textures.toml",
+  explicit TextureEditor(Model &model,
+                         const std::string_view textureListPath = TextureEditor::textureListPath,
                          float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 2.0f);
   ~TextureEditor();
 

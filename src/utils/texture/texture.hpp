@@ -66,7 +66,8 @@ public:
   }
 
 public:
-  static void saveTextureList(const std::vector<std::unique_ptr<ImageTexture>> &list);
+  static void saveTextureList(const std::vector<std::unique_ptr<ImageTexture>> &list,
+                              const std::string_view &filepath);
   static std::vector<std::unique_ptr<ImageTexture>> loadTextureList(const std::string_view &filepath);
 };
 

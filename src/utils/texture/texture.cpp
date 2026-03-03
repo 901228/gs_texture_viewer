@@ -172,7 +172,8 @@ bool ImageTexture::toCuda() {
   return false;
 }
 
-void ImageTexture::saveTextureList(const std::vector<std::unique_ptr<ImageTexture>> &list) {
+void ImageTexture::saveTextureList(const std::vector<std::unique_ptr<ImageTexture>> &list,
+                                   const std::string_view &filepath) {
 
   toml::array texturesList;
   for (const auto &texture : list) {
@@ -182,7 +183,7 @@ void ImageTexture::saveTextureList(const std::vector<std::unique_ptr<ImageTextur
   toml::table tbl;
   tbl.insert("texturesList", texturesList);
 
-  std::ofstream file("textures.toml");
+  std::ofstream file(std::string(filepath).c_str());
   file << tbl;
   file.close();
 }
