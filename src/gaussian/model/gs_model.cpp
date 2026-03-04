@@ -61,8 +61,8 @@ GaussianModel::~GaussianModel() {
   cudaFree(_shs_cuda);
 
   // rendering data
-  cudaFree(_view_cuda);
-  cudaFree(_proj_cuda);
+  cudaFree(_colmap_view_cuda);
+  cudaFree(_colmap_proj_view_cuda);
   cudaFree(_cam_pos_cuda);
   cudaFree(_background_cuda);
   cudaFree(_rect_cuda);
@@ -114,8 +114,8 @@ void GaussianModel::_loadPly(const char *plyPath) {
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_scale_cuda, scale.data(), sizeof(Scale) * P, cudaMemcpyHostToDevice));
 
   // Create space for view parameters
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_view_cuda, sizeof(glm::mat4)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_colmap_view_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_colmap_proj_view_cuda, sizeof(glm::mat4)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_cam_pos_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_background_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_rect_cuda, 2 * P * sizeof(int)));
@@ -124,27 +124,40 @@ void GaussianModel::_loadPly(const char *plyPath) {
                                                (float *)scale.data(), opacity.data(), (float *)shs.data());
 }
 
+namespace {
+void flipRow(glm::mat4 &mat, int row) {
+  for (int c = 0; c < 4; ++c)
+    mat[c][row] *= -1.0f;
+};
+} // namespace
+
+void GaussianModel::uploadColmapViewPorjMatrix(const Camera &camera) const {
+
+  // Convert view and projection to target coordinate system
+  glm::mat4 view_mat{camera.viewMatrix()};
+  glm::mat4 proj_view_mat = camera.projectionMatrix() * view_mat;
+  flipRow(view_mat, 1);
+  flipRow(view_mat, 2);
+  flipRow(proj_view_mat, 1);
+
+  CUDA_SAFE_CALL(
+      cudaMemcpy(_colmap_view_cuda, glm::value_ptr(view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(_colmap_proj_view_cuda, glm::value_ptr(proj_view_mat), sizeof(glm::mat4),
+                            cudaMemcpyHostToDevice));
+}
+
 void GaussianModel::render(const Camera &camera, const int &width, const int &height,
                            const glm::vec3 &clearColor, float *image_cuda) const {
 
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_background_cuda, glm::value_ptr(clearColor), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
-  // Convert view and projection to target coordinate system
-  glm::mat4 view_mat{camera.viewMatrix()};
-  glm::mat4 proj_view_mat = camera.projectionMatrix() * view_mat;
-  Utils::flipRow(view_mat, 1);
-  Utils::flipRow(view_mat, 2);
-  Utils::flipRow(proj_view_mat, 1);
-
   // Compute additional view parameters
   float tan_fovy = std::tan(camera.fov() * 0.5f);
   float tan_fovx = tan_fovy * camera.aspect();
 
   // Copy frame-dependent data to GPU
-  CUDA_SAFE_CALL(cudaMemcpy(_view_cuda, glm::value_ptr(view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(
-      cudaMemcpy(_proj_cuda, glm::value_ptr(proj_view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+  uploadColmapViewPorjMatrix(camera);
   CUDA_SAFE_CALL(
       cudaMemcpy(_cam_pos_cuda, glm::value_ptr(camera.eye()), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
@@ -155,8 +168,8 @@ void GaussianModel::render(const Camera &camera, const int &width, const int &he
   CUDA_SAFE_CALL(CudaRasterizer::forward(
       _geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount, _sh_degree, MAX_SH_COEFF,
       _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
-      _scalingModifier, _rot_cuda, nullptr, _view_cuda, _proj_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
-      image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax));
+      _scalingModifier, _rot_cuda, nullptr, _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda,
+      tan_fovx, tan_fovy, false, image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax));
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "

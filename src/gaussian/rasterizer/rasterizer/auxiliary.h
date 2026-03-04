@@ -1,9 +1,12 @@
 
-#ifndef RASTERIZER_AUXILIARY_HPP
-#define RASTERIZER_AUXILIARY_HPP
+#ifndef RASTERIZER_AUXILIARY_H
+#define RASTERIZER_AUXILIARY_H
 #pragma once
 
 #include "config.hpp"
+
+#include "vector/matrix.hpp"
+namespace rs = rasterizer;
 
 #define BLOCK_SIZE (BLOCK_X * BLOCK_Y)
 
@@ -38,32 +41,7 @@ __forceinline__ __device__ void getRect(const float2 p, int2 ext_rect, uint2 &re
       min(grid.y, max(0, static_cast<int>((p.y + static_cast<float>(ext_rect.y) + BLOCK_Y - 1) / BLOCK_Y)))};
 }
 
-__forceinline__ __device__ float3 transformPoint4x3(const float3 &p, const float *matrix) {
-  float3 transformed = {
-      matrix[0] * p.x + matrix[4] * p.y + matrix[8] * p.z + matrix[12],
-      matrix[1] * p.x + matrix[5] * p.y + matrix[9] * p.z + matrix[13],
-      matrix[2] * p.x + matrix[6] * p.y + matrix[10] * p.z + matrix[14],
-  };
-  return transformed;
-}
-
-__forceinline__ __device__ float4 transformPoint4x4(const float3 &p, const float *matrix) {
-  float4 transformed = {matrix[0] * p.x + matrix[4] * p.y + matrix[8] * p.z + matrix[12],
-                        matrix[1] * p.x + matrix[5] * p.y + matrix[9] * p.z + matrix[13],
-                        matrix[2] * p.x + matrix[6] * p.y + matrix[10] * p.z + matrix[14],
-                        matrix[3] * p.x + matrix[7] * p.y + matrix[11] * p.z + matrix[15]};
-  return transformed;
-}
-
-__forceinline__ __device__ bool in_frustum(int idx, const float *orig_points, const float *viewmatrix,
-                                           const float *projmatrix, bool prefiltered, float3 &p_view) {
-  float3 p_orig = {orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2]};
-
-  // Bring points to screen space
-  float4 p_hom = transformPoint4x4(p_orig, projmatrix);
-  float p_w = 1.0f / (p_hom.w + 0.0000001f);
-  float3 p_proj = {p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w};
-  p_view = transformPoint4x3(p_orig, viewmatrix);
+__forceinline__ __device__ bool in_frustum(bool prefiltered, rs::vec3 &p_view) {
 
   if (p_view.z <= 0.2f) // || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y <
                         // -1.3 || p_proj.y > 1.3)))
@@ -78,4 +56,4 @@ __forceinline__ __device__ bool in_frustum(int idx, const float *orig_points, co
   return true;
 }
 
-#endif // !RASTERIZER_AUXILIARY_HPP
+#endif // !RASTERIZER_AUXILIARY_H

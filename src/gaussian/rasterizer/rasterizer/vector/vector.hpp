@@ -115,7 +115,14 @@ struct vec2 {
     assert(i >= 0 && i < 2);
     if (i == 0)
       return x;
-    else
+    else // i == 1
+      return y;
+  }
+  __host__ __device__ const float &operator[](int i) const {
+    assert(i >= 0 && i < 3);
+    if (i == 0)
+      return x;
+    else // i == 1
       return y;
   }
 };
@@ -134,6 +141,9 @@ __host__ __device__ inline float length(const vec2 &v) { return v.length(); }
 __host__ __device__ inline vec2 normalize(const vec2 &a) { return a.normalized(); }
 
 __host__ __device__ inline float dot(const vec2 &a, const vec2 &b) { return a.x * b.x + a.y * b.y; }
+
+__host__ __device__ inline float *value_ptr(vec2 &v) { return &v.x; }
+__host__ __device__ inline const float *value_ptr(const vec2 &v) { return &v.x; }
 
 struct vec3 {
   float x, y, z;
@@ -245,7 +255,16 @@ struct vec3 {
       return x;
     else if (i == 1)
       return y;
-    else
+    else // i == 2
+      return z;
+  }
+  __host__ __device__ const float &operator[](int i) const {
+    assert(i >= 0 && i < 3);
+    if (i == 0)
+      return x;
+    else if (i == 1)
+      return y;
+    else // i == 2
       return z;
   }
 };
@@ -278,14 +297,16 @@ __host__ __device__ inline float dot(const vec3 &a, const vec3 &b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+__host__ __device__ inline float *value_ptr(vec3 &v) { return &v.x; }
+__host__ __device__ inline const float *value_ptr(const vec3 &v) { return &v.x; }
+
 struct vec4 {
   float x, y, z, w;
 
   // Constructors
   __host__ __device__ vec4() : x(0), y(0), z(0), w(0) {}
   __host__ __device__ explicit vec4(const float &val) : x(val), y(val), z(val), w(val) {}
-  __host__ __device__ vec4(const float &x, const float &y, const float &z, const float &w)
-      : x(x), y(y), z(z), w(w) {}
+  __host__ __device__ vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
   __host__ __device__ explicit vec4(const float *val) : x(val[0]), y(val[1]), z(val[2]), w(val[3]) {}
 
   __host__ __device__ explicit vec4(const glm::vec4 &val) : x(val.x), y(val.y), z(val.z), w(val.w) {}
@@ -401,6 +422,17 @@ struct vec4 {
     else // i == 3
       return w;
   }
+  __host__ __device__ const float &operator[](int i) const {
+    assert(i >= 0 && i < 4);
+    if (i == 0)
+      return x;
+    else if (i == 1)
+      return y;
+    else if (i == 2)
+      return z;
+    else // i == 3
+      return w;
+  }
 };
 
 // Scalar * vec4
@@ -428,6 +460,9 @@ __host__ __device__ inline vec4 normalize(const vec4 &a) { return a.normalized()
 __host__ __device__ inline float dot(const vec4 &a, const vec4 &b) {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
+
+__host__ __device__ inline float *value_ptr(vec4 &v) { return &v.x; }
+__host__ __device__ inline const float *value_ptr(const vec4 &v) { return &v.x; }
 
 __host__ __device__ inline vec2::vec2(const vec3 &val) : x(val.x), y(val.y) {}
 __host__ __device__ inline vec2::vec2(const vec4 &val) : x(val.x), y(val.y) {}

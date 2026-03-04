@@ -22,6 +22,9 @@ struct mat2 {
       : cols{{x0, y0}, {x1, y1}} {}
   __host__ __device__ explicit mat2(const float *vals) : cols{{vals[0], vals[1]}, {vals[2], vals[3]}} {}
 
+  __host__ __device__ float *data() { return &cols[0].x; }
+  __host__ __device__ const float *data() const { return &cols[0].x; }
+
   // Access
   __host__ __device__ vec2 &operator[](int i) {
     assert(i >= 0 && i < 2);
@@ -85,6 +88,9 @@ __host__ __device__ inline mat2 operator*(float val, const mat2 &m) { return m *
 
 __host__ __device__ inline mat2 transpose(const mat2 &m) { return m.transpose(); }
 
+__host__ __device__ inline float *value_ptr(mat2 &m) { return m.data(); }
+__host__ __device__ inline const float *value_ptr(const mat2 &m) { return m.data(); }
+
 struct mat3 {
   vec3 cols[3]; // column-major
 
@@ -98,6 +104,9 @@ struct mat3 {
       : cols{{x0, y0, z0}, {x1, y1, z1}, {x2, y2, z2}} {}
   __host__ __device__ explicit mat3(const float *vals)
       : cols{{vals[0], vals[1], vals[2]}, {vals[3], vals[4], vals[5]}, {vals[6], vals[7], vals[8]}} {}
+
+  __host__ __device__ float *data() { return &cols[0].x; }
+  __host__ __device__ const float *data() const { return &cols[0].x; }
 
   // Access
   __host__ __device__ vec3 &operator[](int i) {
@@ -175,6 +184,9 @@ __host__ __device__ inline mat3 operator*(float val, const mat3 &m) { return m *
 
 __host__ __device__ inline mat3 transpose(const mat3 &m) { return m.transpose(); }
 
+__host__ __device__ inline float *value_ptr(mat3 &m) { return m.data(); }
+__host__ __device__ inline const float *value_ptr(const mat3 &m) { return m.data(); }
+
 struct mat4 {
   vec4 cols[4]; // column-major
 
@@ -194,6 +206,9 @@ struct mat4 {
              {vals[4], vals[5], vals[6], vals[7]},
              {vals[8], vals[9], vals[10], vals[11]},
              {vals[12], vals[13], vals[14], vals[15]}} {}
+
+  __host__ __device__ float *data() { return &cols[0].x; }
+  __host__ __device__ const float *data() const { return &cols[0].x; }
 
   // Access
   __host__ __device__ vec4 &operator[](int i) {
@@ -275,6 +290,9 @@ struct mat4 {
 __host__ __device__ inline mat4 operator*(float val, const mat4 &m) { return m * val; }
 
 __host__ __device__ inline mat4 transpose(const mat4 &m) { return m.transpose(); }
+
+__host__ __device__ inline float *value_ptr(mat4 &m) { return m.data(); }
+__host__ __device__ inline const float *value_ptr(const mat4 &m) { return m.data(); }
 
 } // namespace rasterizer
 

@@ -46,9 +46,31 @@ protected:
   float *_shs_cuda = nullptr;
 
   // rendering data buffer
-  float *_view_cuda = nullptr;
-  float *_proj_cuda = nullptr;
+  float *_colmap_view_cuda = nullptr;
+  float *_colmap_proj_view_cuda = nullptr;
   float *_cam_pos_cuda = nullptr;
+
+  /**
+   * Convert Coordinate System from Colmap to OpenGL
+   *
+   * Colmap (OpenCV)      OpenGL
+   *  z                    y
+   *   \                   |
+   *    \                  |
+   *     \                 |
+   *      +------x         +------x
+   *      |                 \
+   *      |                  \
+   *      |                   \
+   *      y                    z
+   *
+   * Flip Y & Z axis of view matrix to match OpenGL
+   *
+   * Only flip Y axis of projection matrix because the z of the clipped position represents the depth of the
+   * point, which will be processed by division by the z of the view pos.
+   */
+  void uploadColmapViewPorjMatrix(const Camera &camera) const;
+
   float *_background_cuda = nullptr;
   int *_rect_cuda = nullptr;
 

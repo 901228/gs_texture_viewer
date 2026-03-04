@@ -176,14 +176,17 @@ __global__ void identifyTileRanges(int L, const uint64_t *point_list_keys, uint2
 
 // Forward rendering procedure for differentiable rasterization
 // of Gaussians.
-int CudaRasterizer::forward(
-    const std::function<char *(size_t)> &geometryBuffer, const std::function<char *(size_t)> &binningBuffer,
-    const std::function<char *(size_t)> &imageBuffer, int P, int D, int M, const float *background, int width,
-    int height, const float *means3D, const float *shs, const float *colors_precomp, const float *opacities,
-    const float *scales, float scale_modifier, const float *rotations, const float *cov3D_precomp,
-    const float *viewmatrix, const float *projmatrix, const float *cam_pos, float tan_fovx, float tan_fovy,
-    bool prefiltered, float *out_color, bool antialiasing, int *radii, int *rects, const float *boxmin,
-    const float *boxmax, const PixelMask *mask, float threshold, TextureOption textureOption) {
+int CudaRasterizer::forward(const std::function<char *(size_t)> &geometryBuffer,
+                            const std::function<char *(size_t)> &binningBuffer,
+                            const std::function<char *(size_t)> &imageBuffer, int P, int D, int M,
+                            const float *background, int width, int height, const float *means3D,
+                            const float *shs, const float *colors_precomp, const float *opacities,
+                            const float *scales, float scale_modifier, const float *rotations,
+                            const float *cov3D_precomp, const float *viewmatrix, const float *projviewmatrix,
+                            const float *cam_pos, float tan_fovx, float tan_fovy, bool prefiltered,
+                            float *out_color, bool antialiasing, int *radii, int *rects, const float *boxmin,
+                            const float *boxmax, const PixelMask *mask, float threshold,
+                            TextureOption textureOption) {
 
   const float focal_y = static_cast<float>(height) / (2.0f * tan_fovy);
   const float focal_x = static_cast<float>(width) / (2.0f * tan_fovx);
@@ -215,10 +218,9 @@ int CudaRasterizer::forward(
     maxx = *((float3 *)boxmax);
   }
 
-  // Run preprocessing per-Gaussian (transformation, bounding, conversion of SHs
-  // to RGB)
+  // Run preprocessing per-Gaussian (transformation, bounding, conversion of SHs to RGB)
   FORWARD::preprocess(P, D, M, means3D, (rs::vec3 *)scales, scale_modifier, (rs::vec4 *)rotations, opacities,
-                      shs, geomState.clamped, cov3D_precomp, colors_precomp, viewmatrix, projmatrix,
+                      shs, geomState.clamped, cov3D_precomp, colors_precomp, viewmatrix, projviewmatrix,
                       (rs::vec3 *)cam_pos, width, height, focal_x, focal_y, tan_fovx, tan_fovy, radii,
                       geomState.means2D, geomState.depths, geomState.cov3D, geomState.rgb,
                       geomState.conic_opacity, tile_grid, geomState.tiles_touched, prefiltered, (int2 *)rects,

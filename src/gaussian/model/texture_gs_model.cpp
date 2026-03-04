@@ -25,15 +25,13 @@ TextureGaussianModel::TextureGaussianModel(const char *geometryPlyPath, const ch
 TextureGaussianModel::~TextureGaussianModel() {
 
   //
-  cudaFree(_model_view_cuda);
-  cudaFree(_model_proj_cuda);
   cudaFree(_model_position_cuda);
   cudaFree(_model_texCoords_cuda);
-  cudaFree(_model_normal_cuda);
   cudaFree(_model_sl_cuda);
   cudaFree(_model_face_mask_cuda);
 
   //
+  cudaFree(_proj_view_cuda);
   cudaFree(_mask_cuda);
 }
 
@@ -115,8 +113,8 @@ void TextureGaussianModel::_loadPly(const char *geometryPlyPath, const char *app
   cudaAllocCopy(&_scale_cuda, gsCount, scale, _gsCountA, scaleA);
 
   // Create space for view parameters
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_view_cuda, sizeof(glm::mat4)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_colmap_view_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_colmap_proj_view_cuda, sizeof(glm::mat4)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_cam_pos_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_background_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_rect_cuda, 2 * (gsCount + _gsCountA) * sizeof(int)));
@@ -149,9 +147,6 @@ void TextureGaussianModel::initMesh() {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_texCoords_cuda, sizeof(glm::vec2) * n_vertices()));
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_texCoords_cuda, textureCoord.data(),
                                    sizeof(glm::vec2) * n_vertices(), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_normal_cuda, sizeof(glm::vec3) * n_faces()));
-  CUDA_SAFE_CALL_ALWAYS(
-      cudaMemcpy(_model_normal_cuda, _normal.data(), sizeof(glm::vec3) * n_faces(), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_sl_cuda, sizeof(cudaTextureObject_t) * n_faces()));
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * n_faces(),
                                    cudaMemcpyHostToDevice));
@@ -159,9 +154,7 @@ void TextureGaussianModel::initMesh() {
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_face_mask_cuda, selectedFaces.data(),
                                    sizeof(std::uint8_t) * n_faces(), cudaMemcpyHostToDevice));
 
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_view_cuda, sizeof(glm::mat4)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_proj_cuda, sizeof(glm::mat4)));
-
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_view_cuda, sizeof(glm::mat4)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
 }
 
@@ -178,21 +171,15 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
     CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
   }
 
-  // Convert view and projection to target coordinate system
-  glm::mat4 view_mat{camera.viewMatrix()};
-  glm::mat4 proj_view_mat = camera.projectionMatrix() * view_mat;
-  Utils::flipRow(view_mat, 1);
-  Utils::flipRow(view_mat, 2);
-  Utils::flipRow(proj_view_mat, 1);
-
   // Compute additional view parameters
   float tan_fovy = std::tan(camera.fov() * 0.5f);
   float tan_fovx = tan_fovy * camera.aspect();
 
   // Copy frame-dependent data to GPU
-  CUDA_SAFE_CALL(cudaMemcpy(_view_cuda, glm::value_ptr(view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+  uploadColmapViewPorjMatrix(camera);
+  glm::mat4 proj_view = camera.projectionMatrix() * camera.viewMatrix();
   CUDA_SAFE_CALL(
-      cudaMemcpy(_proj_cuda, glm::value_ptr(proj_view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+      cudaMemcpy(_proj_view_cuda, glm::value_ptr(proj_view), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
       cudaMemcpy(_cam_pos_cuda, glm::value_ptr(camera.eye()), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
@@ -200,24 +187,21 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   std::vector<cudaTextureObject_t> selectIdx(n_faces(), texId);
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * n_faces(),
                                    cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(_model_view_cuda, glm::value_ptr(camera.viewMatrix()), sizeof(glm::mat4),
-                            cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(_model_proj_cuda, glm::value_ptr(camera.projectionMatrix()), sizeof(glm::mat4),
-                            cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(CudaRasterizer::makeMask(
-      _model_position_cuda, _model_texCoords_cuda, n_vertices(), _model_normal_cuda, _model_sl_cuda,
-      n_faces(), _model_face_mask_cuda, width, height, _model_view_cuda, _model_proj_cuda, _cam_pos_cuda,
-      textureOption.cullingMode, _mask_cuda));
+  CUDA_SAFE_CALL(CudaRasterizer::makeMask(_model_position_cuda, _model_texCoords_cuda, n_vertices(),
+                                          _model_sl_cuda, n_faces(), _model_face_mask_cuda, width, height,
+                                          _proj_view_cuda, _cam_pos_cuda, textureOption.cullingMode,
+                                          _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
   float *boxmin = _cropping ? (float *)&_boxmin : nullptr;
   float *boxmax = _cropping ? (float *)&_boxmax : nullptr;
-  CudaRasterizer::forward(
-      _geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA, _sh_degree, MAX_SH_COEFF,
-      _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
-      _scalingModifier, _rot_cuda, nullptr, _view_cuda, _proj_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
-      image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _mask_cuda, _threshold, textureOption);
+  CudaRasterizer::forward(_geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA,
+                          _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
+                          nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
+                          _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
+                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _mask_cuda, _threshold,
+                          textureOption);
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "

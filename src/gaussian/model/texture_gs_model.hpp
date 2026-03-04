@@ -64,11 +64,9 @@ private:
   // screen mask
 
   // input
-  float *_model_view_cuda = nullptr;
-  float *_model_proj_cuda = nullptr;
+  float *_proj_view_cuda = nullptr;
   float *_model_position_cuda = nullptr;
   float *_model_texCoords_cuda = nullptr;
-  float *_model_normal_cuda = nullptr;
   cudaTextureObject_t *_model_sl_cuda = nullptr;
   std::uint8_t *_model_face_mask_cuda = nullptr;
 

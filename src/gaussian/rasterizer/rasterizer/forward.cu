@@ -56,26 +56,25 @@ __device__ rs::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const r
 }
 
 // Forward version of 2D covariance matrix computation
-__device__ float3 computeCov2D(const float3 &mean, float focal_x, float focal_y, float tan_fovx,
-                               float tan_fovy, const float *cov3D, const float *viewmatrix) {
+__device__ float3 computeCov2D(rs::vec3 &p_view, float focal_x, float focal_y, float tan_fovx, float tan_fovy,
+                               const float *cov3D, const rs::mat4 &viewmatrix) {
   // The following models the steps outlined by equations 29
   // and 31 in "EWA Splatting" (Zwicker et al., 2002).
   // Additionally considers aspect / scaling of viewport.
   // Transposes used to account for row-/column-major conventions.
-  float3 t = transformPoint4x3(mean, viewmatrix);
-
   const float limx = 1.3f * tan_fovx;
   const float limy = 1.3f * tan_fovy;
-  const float txtz = t.x / t.z;
-  const float tytz = t.y / t.z;
-  t.x = rs::min(limx, rs::max(-limx, txtz)) * t.z;
-  t.y = rs::min(limy, rs::max(-limy, tytz)) * t.z;
+  const float txtz = p_view.x / p_view.z;
+  const float tytz = p_view.y / p_view.z;
+  p_view.x = rs::min(limx, rs::max(-limx, txtz)) * p_view.z;
+  p_view.y = rs::min(limy, rs::max(-limy, tytz)) * p_view.z;
 
-  rs::mat3 J = rs::mat3(focal_x / t.z, 0.0f, -(focal_x * t.x) / (t.z * t.z), 0.0f, focal_y / t.z,
-                        -(focal_y * t.y) / (t.z * t.z), 0, 0, 0);
+  rs::mat3 J = rs::mat3(focal_x / p_view.z, 0.0f, -(focal_x * p_view.x) / (p_view.z * p_view.z), 0.0f,
+                        focal_y / p_view.z, -(focal_y * p_view.y) / (p_view.z * p_view.z), 0, 0, 0);
 
-  rs::mat3 W = rs::mat3(viewmatrix[0], viewmatrix[4], viewmatrix[8], viewmatrix[1], viewmatrix[5],
-                        viewmatrix[9], viewmatrix[2], viewmatrix[6], viewmatrix[10]);
+  rs::mat3 W =
+      rs::mat3(viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0], viewmatrix[0][1], viewmatrix[1][1],
+               viewmatrix[2][1], viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
 
   rs::mat3 T = W * J;
 
@@ -129,8 +128,8 @@ __global__ void
 preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *scales,
                const float scale_modifier, const rs::vec4 *rotations, const float *opacities,
                const float *shs, bool *clamped, const float *cov3D_precomp, const float *colors_precomp,
-               const float *viewmatrix, const float *projmatrix, const rs::vec3 *cam_pos, const int W, int H,
-               const float tan_fovx, float tan_fovy, const float focal_x, float focal_y, int *radii,
+               const float *viewmatrix, const float *projviewmatrix, const rs::vec3 *cam_pos, const int W,
+               int H, const float tan_fovx, float tan_fovy, const float focal_x, float focal_y, int *radii,
                float2 *points_xy_image, float *depths, float *cov3Ds, float *rgb, float4 *conic_opacity,
                const dim3 grid, uint32_t *tiles_touched, bool prefiltered, int2 *rects, float3 boxmin,
                float3 boxmax, bool antialiasing) {
@@ -138,29 +137,31 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   if (idx >= P)
     return;
 
+  rs::mat4 view_mat{viewmatrix};
+  rs::mat4 proj_view_mat{projviewmatrix};
+
   // Initialize radius and touched tiles to 0. If this isn't changed,
   // this Gaussian will not be processed further.
   radii[idx] = 0;
   tiles_touched[idx] = 0;
 
-  // Perform near culling, quit if outside.
-  float3 p_view;
-  if (!in_frustum(static_cast<int>(idx), orig_points, viewmatrix, projmatrix, prefiltered, p_view))
-    return;
-
   // Transform point by projecting
-  float3 p_orig = {orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2]};
+  rs::vec3 p_orig = {orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2]};
 
   if (p_orig.x < boxmin.x || p_orig.y < boxmin.y || p_orig.z < boxmin.z || p_orig.x > boxmax.x ||
       p_orig.y > boxmax.y || p_orig.z > boxmax.z)
     return;
 
-  float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+  rs::vec4 p_hom = proj_view_mat * rs::vec4(p_orig, 1.0f);
   float p_w = 1.0f / (p_hom.w + 0.0000001f);
   float3 p_proj = {p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w};
+  rs::vec3 p_view = rs::vec3(view_mat * rs::vec4(p_orig, 1.0f));
 
-  // If 3D covariance matrix is precomputed, use it, otherwise compute
-  // from scaling and rotation parameters.
+  // Perform near culling, quit if outside.
+  if (!in_frustum(prefiltered, p_view))
+    return;
+
+  // If 3D covariance matrix is precomputed, use it, otherwise compute from scaling and rotation parameters.
   const float *cov3D;
   if (cov3D_precomp != nullptr) {
     cov3D = cov3D_precomp + idx * 6;
@@ -170,7 +171,7 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   }
 
   // Compute 2D screen-space covariance matrix
-  float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
+  float3 cov = computeCov2D(p_view, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, view_mat);
 
   constexpr float h_var = 0.3f;
   const float det_cov = cov.x * cov.z - cov.y * cov.y;
@@ -241,7 +242,7 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
 void FORWARD::preprocess(int P, int D, int M, const float *means3D, const rs::vec3 *scales,
                          float scale_modifier, const rs::vec4 *rotations, const float *opacities,
                          const float *shs, bool *clamped, const float *cov3D_precomp,
-                         const float *colors_precomp, const float *viewmatrix, const float *projmatrix,
+                         const float *colors_precomp, const float *viewmatrix, const float *projviewmatrix,
                          const rs::vec3 *cam_pos, int W, int H, float focal_x, float focal_y, float tan_fovx,
                          float tan_fovy, int *radii, float2 *means2D, float *depths, float *cov3Ds,
                          float *rgb, float4 *conic_opacity, dim3 grid, uint32_t *tiles_touched,
@@ -249,7 +250,7 @@ void FORWARD::preprocess(int P, int D, int M, const float *means3D, const rs::ve
 
   preprocessCUDA<NUM_CHANNELS><<<(P + 255) / 256, 256>>>(
       P, D, M, means3D, scales, scale_modifier, rotations, opacities, shs, clamped, cov3D_precomp,
-      colors_precomp, viewmatrix, projmatrix, cam_pos, W, H, tan_fovx, tan_fovy, focal_x, focal_y, radii,
+      colors_precomp, viewmatrix, projviewmatrix, cam_pos, W, H, tan_fovx, tan_fovy, focal_x, focal_y, radii,
       means2D, depths, cov3Ds, rgb, conic_opacity, grid, tiles_touched, prefiltered, rects, boxmin, boxmax,
       antialiasing);
 }
