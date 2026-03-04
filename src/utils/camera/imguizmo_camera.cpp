@@ -28,28 +28,41 @@ void ImGuizmoCamera::_zoom(float wheelDelta) {
 
   _cameraDistance = newDistance;
 }
-void ImGuizmoCamera::_handleInput(ImVec2 pos) {
+void ImGuizmoCamera::handleInput(const ImVec2 &pos) {
 
-  ImGui::SetCursorPos({ImGui::GetContentRegionAvail().x - gizmoSize.x, 0});
+  ImGuiIO &io = ImGui::GetIO();
 
-  if (ImGui::BeginChild("imguizmo camera", gizmoSize)) {
+  // handle zoom
+  if (ImGui::IsWindowHovered()) {
+    float wheelDelta = io.MouseWheel;
 
-    ImVec2 childPos = ImGui::GetCursorScreenPos();
-
-    // ViewGizmo
-    ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
-
-    auto modelMatrix = glm::identity<glm::mat4>();
-    ImGuizmo::ViewManipulate(_cameraView, _cameraProjection, ImGuizmo::OPERATION::ROTATE, ImGuizmo::WORLD,
-                             glm::value_ptr(modelMatrix), _cameraDistance, childPos, gizmoSize, 0x10101010);
-    _viewMatrix = glm::make_mat4(_cameraView);
-
-    ImGui::EndChild();
+    if (wheelDelta != 0)
+      _zoom(wheelDelta);
   }
 
-  ImGui::SetCursorScreenPos(pos);
+  // imguizmo (rotation)
+  {
+    ImGui::SetCursorPos({ImGui::GetContentRegionAvail().x - gizmoSize.x, 0});
+
+    if (ImGui::BeginChild("imguizmo camera", gizmoSize)) {
+
+      ImVec2 childPos = ImGui::GetCursorScreenPos();
+
+      // ViewGizmo
+      ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
+
+      auto modelMatrix = glm::identity<glm::mat4>();
+      ImGuizmo::ViewManipulate(_cameraView, _cameraProjection, ImGuizmo::OPERATION::ROTATE, ImGuizmo::WORLD,
+                               glm::value_ptr(modelMatrix), _cameraDistance, childPos, gizmoSize, 0x10101010);
+      _viewMatrix = glm::make_mat4(_cameraView);
+
+      ImGui::EndChild();
+    }
+
+    ImGui::SetCursorScreenPos(pos);
+  }
 }
-void ImGuizmoCamera::_setCenter(glm::vec3 newCenter) {
+void ImGuizmoCamera::_setCenter(const glm::vec3 &newCenter) {
   glm::vec3 currentCenter = center();
   glm::vec3 direction = newCenter - currentCenter;
 
@@ -59,9 +72,8 @@ void ImGuizmoCamera::_setCenter(glm::vec3 newCenter) {
   // build new view matrix
   _setViewMatrix(newEye, newCenter, up());
 }
-void ImGuizmoCamera::_controls() {}
 
-void ImGuizmoCamera::_setViewMatrix(glm::vec3 eye, glm::vec3 center, glm::vec3 up) {
+void ImGuizmoCamera::_setViewMatrix(const glm::vec3 &eye, const glm::vec3 &center, const glm::vec3 &up) {
 
   Camera::setViewMatrix(eye, center, up);
   memcpy(_cameraView, glm::value_ptr(_viewMatrix), sizeof(float) * 16);

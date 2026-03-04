@@ -14,8 +14,10 @@ public:
 
   inline explicit TrackballCameraThreeSettings(float fov = 30.0f, float nearPlane = 0.1f,
                                                float farPlane = 100.0f, float cameraDistanceMin = 1.0f,
-                                               float cameraDistanceMax = 40.0f, float rotateSpeed = 1.0f)
-      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax),
+                                               float cameraDistanceMax = 40.0f,
+                                               ImGuiMouseButton moveButton = ImGuiMouseButton_Middle,
+                                               float rotateSpeed = 1.0f)
+      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, moveButton),
         rotateSpeed(rotateSpeed) {}
 };
 
@@ -25,14 +27,14 @@ public:
                                 TrackballCameraThreeSettings settings = TrackballCameraThreeSettings());
 
 private:
-  void _onResize(float width, float height) override;
   void _zoom(float wheelDelta) override;
-  void _handleInput(ImVec2 pos) override;
-  void _setCenter(glm::vec3 newCenter) override;
-  void _controls() override;
+  void _setCenter(const glm::vec3 &newCenter) override;
+
+  void _onRotateStart(const glm::vec2 &localMousePos) override;
+  void _onRotateMove(const glm::vec2 &localMousePos) override;
+  void _onRotateEnd() override;
 
 private:
-  bool _isRotating = false;
   glm::vec2 _currP;
   glm::vec2 _prevP;
 
@@ -41,7 +43,7 @@ private:
   glm::vec3 _up{0, 1, 0};
 
 private:
-  glm::vec2 _getMouseOnCircle(glm::vec2 localPosition) const;
+  glm::vec2 _getMouseOnCircle(const glm::vec2 &localPosition) const;
   void _updateViewMatrix();
 
 private:

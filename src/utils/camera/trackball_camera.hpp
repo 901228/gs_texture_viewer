@@ -16,9 +16,10 @@ public:
 
   inline explicit TrackballCameraSettings(float fov = 30.0f, float nearPlane = 0.1f, float farPlane = 100.0f,
                                           float cameraDistanceMin = 1.0f, float cameraDistanceMax = 40.0f,
+                                          ImGuiMouseButton moveButton = ImGuiMouseButton_Middle,
                                           float radius = 1.0f, bool invertX = true, bool invertY = false)
-      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax), radius(radius),
-        invertX(invertX), invertY(invertY) {}
+      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, moveButton),
+        radius(radius), invertX(invertX), invertY(invertY) {}
 };
 
 class TrackballCamera : public Camera {
@@ -27,16 +28,17 @@ public:
                            TrackballCameraSettings settings = TrackballCameraSettings());
 
 private:
-  void _onResize(float width, float height) override;
   void _zoom(float wheelDelta) override;
-  void _handleInput(ImVec2 pos) override;
-  void _setCenter(glm::vec3 newCenter) override;
+  void _setCenter(const glm::vec3 &newCenter) override;
   void _controls() override;
 
   void _resetRotation();
 
+  void _onRotateStart(const glm::vec2 &localMousePos) override;
+  void _onRotateMove(const glm::vec2 &localMousePos) override;
+  void _onRotateEnd() override;
+
 private:
-  bool _isRotating = false;
   glm::vec3 _startP{};
 
   glm::quat _lastQ{1, 0, 0, 0};

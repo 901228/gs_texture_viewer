@@ -7,7 +7,7 @@
 #include <ImGui/imgui.h>
 
 #include "gaussian/model/texture_gs_model.hpp"
-#include "utils/camera/trackball_camera.hpp"
+#include "utils/camera/trackball_camera_three.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
@@ -21,7 +21,7 @@ void TextureGSPanel::_attach() {
       std::make_unique<TextureGaussianModel>((char *)(PROJECT_DIR "/assets/gs/armadillo/geo.ply"),
                                              (char *)(PROJECT_DIR "/assets/gs/armadillo/app.ply"), 3, 0);
 
-  camera = std::make_unique<TrackballCamera>(-40.0f, TrackballCameraSettings());
+  camera = std::make_unique<TrackballCameraThree>(-40.0f, TrackballCameraThreeSettings());
   camera->setCenter(_textureGaussianModel->center());
 
   _textureEditor = std::make_unique<TextureEditor>(*_textureGaussianModel);

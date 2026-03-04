@@ -8,25 +8,23 @@ class ImGuizmoCameraSettings : public CameraSettings {
 public:
   inline explicit ImGuizmoCameraSettings(float fov = 30.0f, float nearPlane = 0.1f, float farPlane = 100.0f,
                                          float cameraDistanceMin = 1.0f, float cameraDistanceMax = 40.0f,
-                                         ImGuiMouseButton rotateButton = ImGuiMouseButton_Middle,
-                                         ImGuiMouseButton panButton = ImGuiMouseButton_Middle)
-      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, rotateButton,
-                       panButton) {}
+                                         ImGuiMouseButton moveButton = ImGuiMouseButton_Middle)
+      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, moveButton) {}
 };
 
 class ImGuizmoCamera : public Camera {
 public:
   explicit ImGuizmoCamera(float cameraDistance, ImGuizmoCameraSettings settings = ImGuizmoCameraSettings());
 
+  void handleInput(const ImVec2 &pos) override;
+
 private:
   void _onResize(float width, float height) override;
   void _zoom(float wheelDelta) override;
-  void _handleInput(ImVec2 pos) override;
-  void _setCenter(glm::vec3 newCenter) override;
-  void _controls() override;
+  void _setCenter(const glm::vec3 &newCenter) override;
 
 private:
-  void _setViewMatrix(glm::vec3 eye, glm::vec3 center, glm::vec3 up);
+  void _setViewMatrix(const glm::vec3 &eye, const glm::vec3 &center, const glm::vec3 &up);
 
 private:
   float _cameraDistance;

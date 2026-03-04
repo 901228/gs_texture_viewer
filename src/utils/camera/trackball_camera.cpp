@@ -1,7 +1,8 @@
 #include "trackball_camera.hpp"
 
 namespace {
-glm::vec2 normalizeMousePos(const ImVec2 &mousePos, float width, float height, bool invertX, bool invertY) {
+glm::vec2 normalizeMousePos(const glm::vec2 &mousePos, float width, float height, bool invertX,
+                            bool invertY) {
   // normalize the mouse input pos
   // C = {1/2 * (width - 1), 1/2 * (height - 1)}
   // s = min(width, height) - 1
@@ -31,7 +32,7 @@ glm::vec3 projectToSphere(const glm::vec2 &p, float radius) {
   return {p, z};
 }
 
-glm::vec3 project(const ImVec2 &mousePos, float width, float height, float radius, bool invertX,
+glm::vec3 project(const glm::vec2 &mousePos, float width, float height, float radius, bool invertX,
                   bool invertY) {
   return projectToSphere(normalizeMousePos(mousePos, width, height, invertX, invertY), radius);
 }
@@ -92,8 +93,6 @@ TrackballCamera::TrackballCamera(float cameraDistance, TrackballCameraSettings s
   _updateViewMatrix();
 }
 
-void TrackballCamera::_onResize(float width, float height) {}
-
 void TrackballCamera::_zoom(float wheelDelta) {
 
   // update distance
@@ -106,45 +105,25 @@ void TrackballCamera::_zoom(float wheelDelta) {
   _updateViewMatrix();
 }
 
-void TrackballCamera::_handleInput(ImVec2 pos) {
-  ImVec2 mousePos = ImGui::GetMousePos();
-  ImVec2 localMousePos = {mousePos.x - pos.x, mousePos.y - pos.y};
+void TrackballCamera::_onRotateStart(const glm::vec2 &localMousePos) {
+  _startP = project(localMousePos, _width, _height, _trackBallSettings.radius, _trackBallSettings.invertX,
+                    _trackBallSettings.invertY);
+}
+void TrackballCamera::_onRotateMove(const glm::vec2 &localMousePos) {
+  glm::vec3 q = project(localMousePos, _width, _height, _trackBallSettings.radius, _trackBallSettings.invertX,
+                        _trackBallSettings.invertY);
 
-  if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-    if (_isRotating) {
-      _isRotating = false;
-      _currQ = {1.0f, 0.0f, 0.0f, 0.0f};
-      _updateViewMatrix();
-    }
-  }
+  _currQ = fromVectors(_startP, q);
 
-  // on mouse down
-  if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(_trackBallSettings.rotateButton)) {
-    _isRotating = true;
-    _startP = project(localMousePos, _width, _height, _trackBallSettings.radius, _trackBallSettings.invertX,
-                      _trackBallSettings.invertY);
-  }
-
-  // on mouse move
-  if (_isRotating && ImGui::IsMouseDragging(_trackBallSettings.rotateButton)) {
-    glm::vec3 q = project(localMousePos, _width, _height, _trackBallSettings.radius,
-                          _trackBallSettings.invertX, _trackBallSettings.invertY);
-
-    _currQ = fromVectors(_startP, q);
-
-    _updateViewMatrix();
-  }
-
-  // on mouse up
-  if (_isRotating && ImGui::IsMouseReleased(_trackBallSettings.rotateButton)) {
-    _isRotating = false;
-    _lastQ = _lastQ * _currQ;
-    _currQ = {1.0f, 0.0f, 0.0f, 0.0f};
-    _updateViewMatrix();
-  }
+  _updateViewMatrix();
+}
+void TrackballCamera::_onRotateEnd() {
+  _lastQ = _lastQ * _currQ;
+  _currQ = {1.0f, 0.0f, 0.0f, 0.0f};
+  _updateViewMatrix();
 }
 
-void TrackballCamera::_setCenter(glm::vec3 newCenter) {
+void TrackballCamera::_setCenter(const glm::vec3 &newCenter) {
   if (_center == newCenter)
     return;
 
