@@ -17,7 +17,7 @@ public:
                                                float cameraDistanceMax = 40.0f,
                                                ImGuiMouseButton moveButton = ImGuiMouseButton_Middle,
                                                float rotateSpeed = 1.0f)
-      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, moveButton),
+      : CameraSettings(fov, nearPlane, farPlane, cameraDistanceMin, cameraDistanceMax, moveButton, true),
         rotateSpeed(rotateSpeed) {}
 };
 
@@ -30,9 +30,10 @@ private:
   void _zoom(float wheelDelta) override;
   void _setCenter(const glm::vec3 &newCenter) override;
 
-  void _onRotateStart(const glm::vec2 &localMousePos) override;
-  void _onRotateMove(const glm::vec2 &localMousePos) override;
+  void _onRotateStart(const glm::vec2 &ndcMousePos) override;
+  void _onRotateMove(const glm::vec2 &ndcMousePos) override;
   void _onRotateEnd() override;
+  void _onRotateUpMove(const glm::vec2 &ndcMousePos) override;
 
 private:
   glm::vec2 _currP;
@@ -43,7 +44,6 @@ private:
   glm::vec3 _up{0, 1, 0};
 
 private:
-  glm::vec2 _getMouseOnCircle(const glm::vec2 &localPosition) const;
   void _updateViewMatrix();
 
 private:

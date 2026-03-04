@@ -105,13 +105,13 @@ void TrackballCamera::_zoom(float wheelDelta) {
   _updateViewMatrix();
 }
 
-void TrackballCamera::_onRotateStart(const glm::vec2 &localMousePos) {
-  _startP = project(localMousePos, _width, _height, _trackBallSettings.radius, _trackBallSettings.invertX,
-                    _trackBallSettings.invertY);
+void TrackballCamera::_onRotateStart(const glm::vec2 &ndcMousePos) {
+  _startP = project(_getlocalPosFromNDC(ndcMousePos), _width, _height, _trackBallSettings.radius,
+                    _trackBallSettings.invertX, _trackBallSettings.invertY);
 }
-void TrackballCamera::_onRotateMove(const glm::vec2 &localMousePos) {
-  glm::vec3 q = project(localMousePos, _width, _height, _trackBallSettings.radius, _trackBallSettings.invertX,
-                        _trackBallSettings.invertY);
+void TrackballCamera::_onRotateMove(const glm::vec2 &ndcMousePos) {
+  glm::vec3 q = project(_getlocalPosFromNDC(ndcMousePos), _width, _height, _trackBallSettings.radius,
+                        _trackBallSettings.invertX, _trackBallSettings.invertY);
 
   _currQ = fromVectors(_startP, q);
 

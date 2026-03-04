@@ -34,8 +34,8 @@ private:
 
   void _resetRotation();
 
-  void _onRotateStart(const glm::vec2 &localMousePos) override;
-  void _onRotateMove(const glm::vec2 &localMousePos) override;
+  void _onRotateStart(const glm::vec2 &ndcMousePos) override;
+  void _onRotateMove(const glm::vec2 &ndcMousePos) override;
   void _onRotateEnd() override;
 
 private:

@@ -1,5 +1,23 @@
 #include "trackball_camera_three.hpp"
 
+namespace {
+
+bool _insideSphere(glm::vec2 p) { return p.x * p.x + p.y * p.y <= 1.0f; }
+
+glm::vec3 _projectToSphere(glm::vec2 p) {
+  glm::vec3 v(p.x, p.y, 0.0f);
+
+  if (_insideSphere(v)) {
+    v.z = std::sqrtf(1.0f - p.x * p.x - p.y * p.y);
+  } else {
+    v = glm::normalize(v);
+  }
+
+  return glm::normalize(v);
+}
+
+} // namespace
+
 TrackballCameraThree::TrackballCameraThree(float cameraDistance, TrackballCameraThreeSettings settings)
     : Camera(settings), _eye({0, 0, cameraDistance}) {
 
@@ -21,14 +39,14 @@ void TrackballCameraThree::_zoom(float wheelDelta) {
   _updateViewMatrix();
 }
 
-void TrackballCameraThree::_onRotateStart(const glm::vec2 &localMousePos) {
-  _currP = _getMouseOnCircle(localMousePos);
+void TrackballCameraThree::_onRotateStart(const glm::vec2 &ndcMousePos) {
+  _currP = ndcMousePos;
   _prevP = _currP;
 }
-void TrackballCameraThree::_onRotateMove(const glm::vec2 &localMousePos) {
+void TrackballCameraThree::_onRotateMove(const glm::vec2 &ndcMousePos) {
 
   _prevP = _currP;
-  _currP = _getMouseOnCircle(localMousePos);
+  _currP = ndcMousePos;
 
   glm::vec2 _cursorDirection = _currP - _prevP;
   float angle = glm::length(_cursorDirection);
@@ -39,7 +57,14 @@ void TrackballCameraThree::_onRotateMove(const glm::vec2 &localMousePos) {
     glm::vec3 backward = glm::normalize(_eye - _center);
     glm::vec3 right = glm::normalize(glm::cross(_up, backward));
 
-    glm::vec3 up = _up * _cursorDirection.y;
+    glm::vec3 up = glm::cross(backward, right);
+    if (glm::length(up) < 1e-6f)
+      _up = glm::vec3(0, 1, 0);
+    else {
+      _up = glm::normalize(up);
+    }
+
+    up = _up * _cursorDirection.y;
     right *= _cursorDirection.x;
     glm::vec3 moveDirection = up + right;
 
@@ -62,6 +87,35 @@ void TrackballCameraThree::_onRotateMove(const glm::vec2 &localMousePos) {
 
   _prevP = _currP;
 }
+void TrackballCameraThree::_onRotateUpMove(const glm::vec2 &ndcMousePos) {
+
+  _prevP = _currP;
+  _currP = ndcMousePos;
+
+  glm::vec2 _cursorDirection = _currP - _prevP;
+  float angle = glm::length(_cursorDirection);
+
+  if (angle != 0) {
+
+    glm::vec3 forward = glm::normalize(_center - _eye);
+    glm::vec3 right = normalize(cross(forward, _up));
+    glm::vec3 up = glm::cross(right, forward);
+    if (glm::length(up) < 1e-6f)
+      _up = glm::vec3(0, 1, 0);
+    else {
+      _up = glm::normalize(up);
+    }
+
+    if (_prevP.x * _currP.y - _prevP.y * _currP.x < 0)
+      angle = -angle;
+    glm::quat q = glm::angleAxis(angle, forward);
+    _up = q * _up;
+
+    _updateViewMatrix();
+  }
+
+  _prevP = _currP;
+}
 void TrackballCameraThree::_onRotateEnd() { _updateViewMatrix(); }
 
 void TrackballCameraThree::_setCenter(const glm::vec3 &newCenter) {
@@ -74,10 +128,6 @@ void TrackballCameraThree::_setCenter(const glm::vec3 &newCenter) {
   _eye += direction;
 
   _updateViewMatrix();
-}
-
-glm::vec2 TrackballCameraThree::_getMouseOnCircle(const glm::vec2 &localPosition) const {
-  return {(localPosition.x - _width * 0.5) / (_width * 0.5), (_height + 2 * -localPosition.y) / _width};
 }
 
 void TrackballCameraThree::_updateViewMatrix() { setViewMatrix(_eye, _center, _up); }
