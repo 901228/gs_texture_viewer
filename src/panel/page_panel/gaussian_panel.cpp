@@ -38,9 +38,8 @@ void GaussianPanel::_render() {
                                          ImVec2(pos.x + _width, pos.y + _height), ImVec2(0, 1), ImVec2(1, 0));
 
     camera->handleInput(pos);
-
-    ImGui::EndChild();
   }
+  ImGui::EndChild();
 }
 
 void GaussianPanel::_renderParameterization() {}

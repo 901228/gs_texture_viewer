@@ -32,6 +32,11 @@ bool BeginOpenGL(const char *str_id, const ImVec2 &size, bool border, ImGuiWindo
 
 void EndOpenGL() {
 
+  if (ID_stack.empty()) {
+    ImGui::EndChild();
+    return;
+  }
+
   FrameBufferHelper *data = fboData.GetByKey(ID_stack.top());
   FrameBufferHelper::unbindDraw();
 

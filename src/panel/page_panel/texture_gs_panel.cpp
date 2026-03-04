@@ -59,9 +59,8 @@ void TextureGSPanel::_render() {
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
-
-    ImGui::EndChild();
   }
+  ImGui::EndChild();
 }
 
 void TextureGSPanel::_renderParameterization() {

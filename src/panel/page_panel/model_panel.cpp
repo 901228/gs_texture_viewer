@@ -52,9 +52,8 @@ void ModelPanel::_render() {
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
-
-    ImGui::EndOpenGL();
   }
+  ImGui::EndOpenGL();
 }
 
 void ModelPanel::_renderParameterization() {
