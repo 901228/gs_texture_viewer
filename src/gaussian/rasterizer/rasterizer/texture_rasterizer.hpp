@@ -30,8 +30,8 @@ struct PixelMask {
 };
 
 void makeMask(const float *position, const float *texCoords, int num_vertices, const cudaTextureObject_t *sl,
-              int num_triangles, const uint8_t *face_mask, int width, int height, const float *projviewmatrix,
-              const float *viewpos, MaskCullingMode maskCullingMode, PixelMask *mask);
+              int num_triangles, int width, int height, const float *projviewmatrix, const float *viewpos,
+              MaskCullingMode maskCullingMode, PixelMask *mask);
 
 } // namespace CudaRasterizer
 

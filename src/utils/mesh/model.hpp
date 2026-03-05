@@ -71,7 +71,7 @@ public:
 
   inline void addSelectedID(unsigned int id) { _selectedID->insert(id); }
   virtual void clearSelect();
-  virtual void selectRadius(int id, int radius, bool isAdd);
+  virtual bool selectRadius(int id, int radius, bool isAdd);
 
   virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, float angle);
 

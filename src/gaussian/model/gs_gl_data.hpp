@@ -9,7 +9,6 @@
  */
 class GaussianGLData {
 public:
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
   inline GaussianGLData(int num_gaussians, float *mean_data, float *rot_data, float *scale_data,
                         float *alpha_data, float *color_data) {
 

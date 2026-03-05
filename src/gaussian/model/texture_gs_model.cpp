@@ -28,7 +28,6 @@ TextureGaussianModel::~TextureGaussianModel() {
   cudaFree(_model_position_cuda);
   cudaFree(_model_texCoords_cuda);
   cudaFree(_model_sl_cuda);
-  cudaFree(_model_face_mask_cuda);
 
   //
   cudaFree(_proj_view_cuda);
@@ -141,19 +140,6 @@ void TextureGaussianModel::initMesh() {
   std::vector<cudaTextureObject_t> selectIdx(n_faces(), 0);
   std::vector<std::uint8_t> selectedFaces(n_faces(), 0);
 
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_position_cuda, sizeof(glm::vec3) * n_vertices()));
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_position_cuda, vertices().data(), sizeof(glm::vec3) * n_vertices(),
-                                   cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_texCoords_cuda, sizeof(glm::vec2) * n_vertices()));
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_texCoords_cuda, textureCoord.data(),
-                                   sizeof(glm::vec2) * n_vertices(), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_sl_cuda, sizeof(cudaTextureObject_t) * n_faces()));
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * n_faces(),
-                                   cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_face_mask_cuda, sizeof(std::uint8_t) * n_faces()));
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_face_mask_cuda, selectedFaces.data(),
-                                   sizeof(std::uint8_t) * n_faces(), cudaMemcpyHostToDevice));
-
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_view_cuda, sizeof(glm::mat4)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
 }
@@ -184,13 +170,13 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
       cudaMemcpy(_cam_pos_cuda, glm::value_ptr(camera.eye()), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
   // render selection
-  std::vector<cudaTextureObject_t> selectIdx(n_faces(), texId);
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * n_faces(),
+  size_t faceCount = _selectedID->size();
+  std::vector<cudaTextureObject_t> selectIdx(faceCount, texId);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * faceCount,
                                    cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(CudaRasterizer::makeMask(_model_position_cuda, _model_texCoords_cuda, n_vertices(),
-                                          _model_sl_cuda, n_faces(), _model_face_mask_cuda, width, height,
-                                          _proj_view_cuda, _cam_pos_cuda, textureOption.cullingMode,
-                                          _mask_cuda));
+  CUDA_SAFE_CALL(CudaRasterizer::makeMask(_model_position_cuda, _model_texCoords_cuda, faceCount * 3,
+                                          _model_sl_cuda, faceCount, width, height, _proj_view_cuda,
+                                          _cam_pos_cuda, textureOption.cullingMode, _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
@@ -217,57 +203,89 @@ void TextureGaussianModel::controls() {
   ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.005f, "%.4f");
 }
 
-void TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {
+bool TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {
 
-  Model::selectRadius(id, radius, isAdd);
-
-  std::vector<std::uint8_t> selectedFaces(n_faces(), 0);
-  for (const auto &i : *_selectedID) {
-    selectedFaces[i] = 1;
+  bool dirty = Model::selectRadius(id, radius, isAdd);
+  if (!dirty) {
+    return false;
   }
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_face_mask_cuda, selectedFaces.data(),
-                                   sizeof(std::uint8_t) * n_faces(), cudaMemcpyHostToDevice));
+
+  updateData();
+
+  return true;
+}
+
+void TextureGaussianModel::updateData() {
+
+  size_t faceCount = _selectedID->size();
+  size_t vertexCount = faceCount * 3;
+
+  std::vector<glm::vec3> v{};
+  std::vector<glm::vec2> t{};
+
+  for (const auto &fid : *_selectedID) {
+    MyMesh::FaceHandle fh = _mesh.face_handle(fid);
+
+    for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
+
+      v.push_back(Utils::toGlm(_mesh.point(vh)));
+      t.push_back(Utils::toGlm(_mesh.texcoord2D(vh)));
+    }
+  }
+
+  // free old data
+  cudaFree(_model_position_cuda);
+  cudaFree(_model_texCoords_cuda);
+  cudaFree(_model_sl_cuda);
+
+  // allocate new data
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_position_cuda, sizeof(glm::vec3) * vertexCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMemcpy(_model_position_cuda, v.data(), sizeof(glm::vec3) * vertexCount, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_texCoords_cuda, sizeof(glm::vec2) * vertexCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMemcpy(_model_texCoords_cuda, t.data(), sizeof(glm::vec2) * vertexCount, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_sl_cuda, sizeof(cudaTextureObject_t) * faceCount));
 }
 
 void TextureGaussianModel::updateTexcoordVAO() {
 
   // update texcoord VAO buffer
-  const size_t size = n_vertices();
-  auto *data = new glm::vec2[size];
+  size_t faceCount = _selectedID->size();
+  size_t vertexCount = faceCount * 3;
+  auto *data = new glm::vec2[vertexCount];
 
   // copy from CUDA
   CUDA_SAFE_CALL_ALWAYS(
-      cudaMemcpy(data, _model_texCoords_cuda, sizeof(glm::vec2) * n_vertices(), cudaMemcpyDeviceToHost));
+      cudaMemcpy(data, _model_texCoords_cuda, sizeof(glm::vec2) * vertexCount, cudaMemcpyDeviceToHost));
 
   int index = -1;
-  for (const MyMesh::FaceHandle fh : _mesh.faces()) {
+  for (const auto &fid : *_selectedID) {
+    MyMesh::FaceHandle fh = _mesh.face_handle(fid);
 
     for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
 
       const MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(vh);
       index++;
-
-      if (data[index].x != -1 || data[index].y != -1) {
-
-        if (_selectedID->find(fh.idx()) == _selectedID->end())
-          continue;
-      }
       data[index] = {texCoord[0], texCoord[1]};
     }
   }
 
   // copy to CUDA
   CUDA_SAFE_CALL_ALWAYS(
-      cudaMemcpy(_model_texCoords_cuda, data, sizeof(glm::vec2) * n_vertices(), cudaMemcpyHostToDevice));
+      cudaMemcpy(_model_texCoords_cuda, data, sizeof(glm::vec2) * vertexCount, cudaMemcpyHostToDevice));
 }
 
 void TextureGaussianModel::clearSelect() {
 
   Model::clearSelect();
 
-  std::vector<std::uint8_t> selectedFaces(n_faces(), 0);
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_face_mask_cuda, selectedFaces.data(),
-                                   sizeof(std::uint8_t) * n_faces(), cudaMemcpyHostToDevice));
+  cudaFree(_model_position_cuda);
+  _model_position_cuda = nullptr;
+  cudaFree(_model_texCoords_cuda);
+  _model_texCoords_cuda = nullptr;
+  cudaFree(_model_sl_cuda);
+  _model_sl_cuda = nullptr;
 }
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }

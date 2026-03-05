@@ -42,9 +42,11 @@ private:
 
 public:
   // model
-  void selectRadius(int id, int radius, bool isAdd) override;
+  bool selectRadius(int id, int radius, bool isAdd) override;
+  void updateData();
   void clearSelect() override;
   void calculateParameterization(SolveUV::SolvingMode solvingMode, float angle) override;
+
   [[nodiscard]] std::vector<std::pair<unsigned int, std::pair<float, float>>>
   getSelectedTextureCoords() const override;
 
@@ -68,7 +70,6 @@ private:
   float *_model_position_cuda = nullptr;
   float *_model_texCoords_cuda = nullptr;
   cudaTextureObject_t *_model_sl_cuda = nullptr;
-  std::uint8_t *_model_face_mask_cuda = nullptr;
 
   // output
   CudaRasterizer::PixelMask *_mask_cuda = nullptr;

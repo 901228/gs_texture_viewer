@@ -46,16 +46,12 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
                        const rs::vec4 *__restrict__ clip_pos,      // per-vertex
                        const float2 *__restrict__ texCoords,       // per-vertex
                        const cudaTextureObject_t *__restrict__ sl, // per-face
-                       int num_triangles, const float *__restrict__ viewpos,
-                       const uint8_t *__restrict__ face_mask, int width, int height,
+                       int num_triangles, const float *__restrict__ viewpos, int width, int height,
                        uint32_t *__restrict__ depth_buffer, // temp uint depth buffer for atomicMin
                        CudaRasterizer::MaskCullingMode maskCullingMode,
                        CudaRasterizer::PixelMask *__restrict__ mask) {
   unsigned int prim_id = blockIdx.x * blockDim.x + threadIdx.x;
   if (prim_id >= num_triangles)
-    return;
-
-  if (face_mask != nullptr && face_mask[prim_id] == 0)
     return;
 
   // triangle vertex id
@@ -162,9 +158,12 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
 } // namespace
 
 void CudaRasterizer::makeMask(const float *position, const float *texCoords, int num_vertices,
-                              const cudaTextureObject_t *sl, int num_triangles, const uint8_t *face_mask,
-                              int width, int height, const float *projviewmatrix, const float *viewpos,
+                              const cudaTextureObject_t *sl, int num_triangles, int width, int height,
+                              const float *projviewmatrix, const float *viewpos,
                               MaskCullingMode maskCullingMode, PixelMask *mask) {
+
+  if (position == nullptr || texCoords == nullptr || sl == nullptr)
+    return;
 
   rs::vec4 *clip_pos;
   uint32_t *d_depth;
@@ -186,7 +185,7 @@ void CudaRasterizer::makeMask(const float *position, const float *texCoords, int
 
   // ── Rasterize + Fragment Shader ──
   render<<<(num_triangles + 255) / 256, 256>>>((float3 *)position, clip_pos, (float2 *)texCoords, sl,
-                                               num_triangles, viewpos, face_mask, width, height, d_depth,
+                                               num_triangles, viewpos, width, height, d_depth,
                                                maskCullingMode, mask);
 
   cudaFree(clip_pos);

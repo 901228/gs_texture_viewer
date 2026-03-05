@@ -252,10 +252,10 @@ HitResult Model::select(const Camera &camera, float width, float height, const g
   return hit;
 }
 
-void Model::selectRadius(int id, int radius, bool isAdd) {
+bool Model::selectRadius(int id, int radius, bool isAdd) {
 
   if (id < 0 || id >= n_faces())
-    return;
+    return false;
 
   std::unordered_set<int> visited;
 
@@ -264,16 +264,19 @@ void Model::selectRadius(int id, int radius, bool isAdd) {
   queue.emplace(_mesh.face_handle(id), 0);
   visited.insert(id);
 
+  bool dirty = false;
+
   while (!queue.empty()) {
     auto [fh, depth] = queue.front();
     queue.pop();
 
-    if (isAdd) {
+    auto flag = _selectedID->find(fh.idx());
+    if (isAdd && flag == _selectedID->end()) {
+      dirty = true;
       _selectedID->insert(fh.idx());
-    } else {
-      auto flag = _selectedID->find(fh.idx());
-      if (flag != _selectedID->end())
-        _selectedID->erase(flag);
+    } else if (!isAdd && flag != _selectedID->end()) {
+      dirty = true;
+      _selectedID->erase(flag);
     }
 
     if (depth >= radius)
@@ -288,6 +291,8 @@ void Model::selectRadius(int id, int radius, bool isAdd) {
       queue.emplace(neighbor, depth + 1);
     }
   }
+
+  return dirty;
 }
 
 void Model::clearSelect() { _selectedID->clear(); }
