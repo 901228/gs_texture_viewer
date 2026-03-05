@@ -7,7 +7,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-#include "texture_rasterizer.hpp"
+#include "defines.hpp"
 
 namespace CudaRasterizer {
 
@@ -19,8 +19,9 @@ int forward(const std::function<char *(size_t)> &geometryBuffer,
             const float *cov3D_precomp, const float *viewmatrix, const float *projviewmatrix,
             const float *cam_pos, float tan_fovx, float tan_fovy, bool prefiltered, float *out_color,
             bool antialiasing, int *radii = nullptr, int *rects = nullptr, const float *boxmin = nullptr,
-            const float *boxmax = nullptr, const CudaRasterizer::PixelMask *mask = nullptr,
-            float threshold = 0.005f, TextureOption textureOption = {});
+            const float *boxmax = nullptr, RenderingMode renderingMode = RenderingMode::Color,
+            const CudaRasterizer::PixelMask *mask = nullptr, float threshold = 0.005f,
+            TextureOption textureOption = {});
 
 } // namespace CudaRasterizer
 

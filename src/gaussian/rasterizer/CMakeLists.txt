@@ -28,6 +28,8 @@ find_package(CUDAToolkit REQUIRED)
 
 # create CUDA static library
 add_library(GAUSSIAN_LIB STATIC
+  rasterizer/defines.hpp
+
   rasterizer/forward.hpp
   rasterizer/forward.cu
   rasterizer/auxiliary.h

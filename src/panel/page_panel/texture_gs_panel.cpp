@@ -12,6 +12,8 @@
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
 
+#include "rasterizer/defines.hpp"
+
 TextureGSPanel::TextureGSPanel() : _textureGaussianModel(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
 TextureGSPanel::~TextureGSPanel() { detach(); }
@@ -133,7 +135,7 @@ void TextureGSPanel::_controls() {
     if (ImGui::BeginTabItem("textures")) {
 
       ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureRenderMode),
-                   Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
+                   Utils::enumToImGuiCombo<CudaRasterizer::TextureOption::RenderingMode>().c_str());
       ImGui::Combo("Mask Culling Mode", reinterpret_cast<int *>(&_maskCullingMode),
                    Utils::enumToImGuiCombo<CudaRasterizer::MaskCullingMode>().c_str());
       ImGui::NewLine();

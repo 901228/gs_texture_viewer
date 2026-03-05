@@ -186,8 +186,8 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
                           _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
                           nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
                           _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
-                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _mask_cuda, _threshold,
-                          textureOption);
+                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _renderingMode,
+                          _mask_cuda, _threshold, textureOption);
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
@@ -199,6 +199,9 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
 void TextureGaussianModel::controls() {
 
   GaussianModel::controls();
+
+  ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
+               Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
 
   ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.005f, "%.4f");
 }

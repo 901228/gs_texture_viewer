@@ -41,10 +41,12 @@ __forceinline__ __device__ void getRect(const float2 p, int2 ext_rect, uint2 &re
       min(grid.y, max(0, static_cast<int>((p.y + static_cast<float>(ext_rect.y) + BLOCK_Y - 1) / BLOCK_Y)))};
 }
 
+#define DEPTH_MIN 0.2f
+
 __forceinline__ __device__ bool in_frustum(bool prefiltered, rs::vec3 &p_view) {
 
-  if (p_view.z <= 0.2f) // || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y <
-                        // -1.3 || p_proj.y > 1.3)))
+  if (p_view.z <= DEPTH_MIN) // || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y <
+                             // -1.3 || p_proj.y > 1.3)))
   {
     if (prefiltered) {
       printf("Point is filtered although prefiltered is set. This shouldn't "

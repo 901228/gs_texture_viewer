@@ -255,6 +255,10 @@ void FORWARD::preprocess(int P, int D, int M, const float *means3D, const rs::ve
       antialiasing);
 }
 
+// tested:
+//   - armadillo: ~50
+__device__ static float depthMax = -FLT_MAX;
+
 // Main rasterization method. Collaboratively works on one tile per
 // block, each thread treats one pixel. Alternates between fetching
 // and rasterizing data.
@@ -265,6 +269,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
                const float *__restrict__ features, const float4 *__restrict__ conic_opacity,
                float *__restrict__ final_T, uint32_t *__restrict__ n_contrib,
                const float *__restrict__ bg_color, float *__restrict__ out_color,
+               CudaRasterizer::RenderingMode renderingMode = CudaRasterizer::RenderingMode::Color,
                const CudaRasterizer::PixelMask *__restrict__ mask = nullptr, float threshold = 0.005f,
                CudaRasterizer::TextureOption textureOption = {}) {
   // Identify current tile and associated min/max pixel range.
@@ -299,9 +304,11 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
   uint32_t last_contributor = 0;
   float C[CHANNELS] = {0};
 
-  bool found = !(mask != nullptr && mask[pix_id].mask != 0);
-  float mesh_depth = found ? FLT_MAX : mask[pix_id].depth;
+  bool hasMask = mask != nullptr && mask[pix_id].mask != 0;
+  float mesh_depth = hasMask ? mask[pix_id].depth : FLT_MAX;
+  bool found = !hasMask;
   bool visible = false;
+  float pixelDepth = 0;
 
   // Iterate over batches until all done or range is complete
   for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE) {
@@ -357,14 +364,16 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
       // Eq. (3) from 3D Gaussian splatting paper.
       for (int ch = 0; ch < CHANNELS; ch++)
         C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+      pixelDepth += depths[collected_id[j]] * alpha * T;
 
       T = test_T;
 
-      // Keep track of last range entry to update this
-      // pixel.
+      // Keep track of last range entry to update this pixel.
       last_contributor = contributor;
     }
   }
+  if (depthMax < pixelDepth)
+    depthMax = pixelDepth;
 
   // All threads that treat valid pixel write out their final
   // rendering data to the frame and auxiliary buffers.
@@ -372,48 +381,60 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
     final_T[pix_id] = T;
     n_contrib[pix_id] = last_contributor;
 
-    for (int ch = 0; ch < CHANNELS; ch++)
-      out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
+    // whether to override the GS color with the texture color
+    bool overrideColor =
+        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
+        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling && hasMask);
 
-    // read mask
-    if ((textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
-        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling && mask != nullptr &&
-         mask[pix_id].mask != 0)) {
+    if (renderingMode == CudaRasterizer::RenderingMode::Color) {
 
-      const CudaRasterizer::PixelMask &m = mask[pix_id];
+      for (int ch = 0; ch < CHANNELS; ch++)
+        out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
 
-      if (textureOption.mode == CudaRasterizer::RenderingMode::TextureCoords) {
-        out_color[0 * H * W + pix_id] = m.texCoords.x;
-        out_color[1 * H * W + pix_id] = m.texCoords.y;
+      if (overrideColor) {
+
+        const CudaRasterizer::PixelMask &m = mask[pix_id];
+
+        if (textureOption.mode == CudaRasterizer::TextureOption::RenderingMode::TextureCoords) {
+          out_color[0 * H * W + pix_id] = m.texCoords.x;
+          out_color[1 * H * W + pix_id] = m.texCoords.y;
+          out_color[2 * H * W + pix_id] = 0.0f;
+        } else if (textureOption.mode == CudaRasterizer::TextureOption::RenderingMode::Texture) {
+          rs::mat2 rotationMatrix = {cosf(textureOption.theta), -sinf(textureOption.theta),
+                                     sinf(textureOption.theta), cosf(textureOption.theta)};
+          rs::vec2 t =
+              rotationMatrix * ((rs::vec2(m.texCoords.x, m.texCoords.y) - 0.5) * textureOption.scale) + 0.5 +
+              rs::vec2(textureOption.offset);
+          auto color = tex2D<float4>(m.texId, t.x, t.y);
+
+          out_color[0 * H * W + pix_id] = color.x;
+          out_color[1 * H * W + pix_id] = color.y;
+          out_color[2 * H * W + pix_id] = color.z;
+        }
+      }
+    } else if (renderingMode == CudaRasterizer::RenderingMode::Depth) {
+
+      pixelDepth += T * depthMax; // background compensation
+      for (int ch = 0; ch < CHANNELS; ch++)
+        out_color[ch * H * W + pix_id] = (depthMax - pixelDepth) / (depthMax - DEPTH_MIN);
+
+      if (overrideColor) {
+        out_color[0 * H * W + pix_id] = 1.0f;
+        out_color[1 * H * W + pix_id] = 0.0f;
         out_color[2 * H * W + pix_id] = 0.0f;
-      } else if (textureOption.mode == CudaRasterizer::RenderingMode::Texture) {
-        rs::mat2 rotationMatrix = {cosf(textureOption.theta), -sinf(textureOption.theta),
-                                   sinf(textureOption.theta), cosf(textureOption.theta)};
-        rs::vec2 t = rotationMatrix * ((rs::vec2(m.texCoords.x, m.texCoords.y) - 0.5) * textureOption.scale) +
-                     0.5 + rs::vec2(textureOption.offset);
-        auto color = tex2D<float4>(m.texId, t.x, t.y);
-
-        out_color[0 * H * W + pix_id] = color.x;
-        out_color[1 * H * W + pix_id] = color.y;
-        out_color[2 * H * W + pix_id] = color.z;
       }
     }
-
-    // if (mask != nullptr && mask[pix_id].mask != 0) {
-    //   out_color[0 * H * W + pix_id] = 1.0f;
-    //   out_color[1 * H * W + pix_id] = 0.0f;
-    //   out_color[2 * H * W + pix_id] = 0.0f;
-    // }
   }
 }
 
 void FORWARD::render(dim3 grid, dim3 block, const uint2 *ranges, const uint32_t *point_list, int W, int H,
                      const float2 *means2D, const float *depths, const float *colors,
                      const float4 *conic_opacity, float *final_T, uint32_t *n_contrib, const float *bg_color,
-                     float *out_color, const CudaRasterizer::PixelMask *mask, float threshold,
+                     float *out_color, CudaRasterizer::RenderingMode renderingMode,
+                     const CudaRasterizer::PixelMask *mask, float threshold,
                      CudaRasterizer::TextureOption textureOption) {
 
   renderCUDA<NUM_CHANNELS><<<grid, block>>>(ranges, point_list, W, H, means2D, depths, colors, conic_opacity,
-                                            final_T, n_contrib, bg_color, out_color, mask, threshold,
-                                            textureOption);
+                                            final_T, n_contrib, bg_color, out_color, renderingMode, mask,
+                                            threshold, textureOption);
 }

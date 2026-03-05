@@ -5,7 +5,7 @@
 #include "gs_model.hpp"
 #include "utils/mesh/model.hpp"
 
-#include "rasterizer/texture_rasterizer.hpp"
+#include "rasterizer/defines.hpp"
 
 class TextureGaussianModel : public GaussianModel, public Model {
 public:
@@ -73,7 +73,9 @@ private:
 
   // output
   CudaRasterizer::PixelMask *_mask_cuda = nullptr;
-  CudaRasterizer::RenderingMode mode = CudaRasterizer::RenderingMode::Texture;
+  CudaRasterizer::TextureOption::RenderingMode mode = CudaRasterizer::TextureOption::RenderingMode::Texture;
+
+  CudaRasterizer::RenderingMode _renderingMode = CudaRasterizer::RenderingMode::Color;
 
 public:
   [[nodiscard]] int count() const override;

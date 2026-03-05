@@ -15,6 +15,7 @@ class GaussianRenderer;
 class Camera;
 class GaussianModel;
 
+// Singleton class for Gaussian rendering
 class GaussianView {
 public:
   static GaussianView &getInstance() {
