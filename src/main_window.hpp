@@ -19,13 +19,13 @@ class MainWindow {
 
 public:
   // constructor
-  MainWindow();
+  MainWindow(bool isMultiViewport = true);
   ~MainWindow();
 
 private:
   // main functions
   GLFWwindow *window = nullptr;
-  bool Init();
+  bool Init(bool isMultiViewport);
   void Run();
   void Destroy();
   bool isReady = false;
