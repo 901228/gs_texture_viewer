@@ -8,12 +8,18 @@
 #include "../imgui/image_selectable.hpp"
 #include "../imgui/tool_line.hpp"
 #include "../utils.hpp"
+#include "texture.hpp"
 
-TextureEditor::TextureEditor(Model &model, const std::string_view textureListPath, float scaleStep,
-                             float scaleMin, float scaleMax)
-    : _model(model), _textureListPath(textureListPath),
-      _textureList(ImageTexture::loadTextureList(textureListPath)), _scaleStep(scaleStep),
-      _scaleMin(scaleMin), _scaleMax(scaleMax) {}
+TextureEditor::TextureEditor(Model &model, bool isPBR, const std::string_view textureListPath,
+                             float scaleStep, float scaleMin, float scaleMax)
+    : _model(model), _isPBR(isPBR), _textureListPath(textureListPath), _scaleStep(scaleStep),
+      _scaleMin(scaleMin), _scaleMax(scaleMax) {
+  if (!isPBR) {
+    _textureList = ImageTexture::loadTextureList(textureListPath);
+  } else {
+    _pbrTextureList = PBRTexture::loadTextureList(textureListPath);
+  }
+}
 
 TextureEditor::~TextureEditor() = default;
 
@@ -36,7 +42,8 @@ std::tuple<ImVec2, ImVec2, ImVec2, ImVec2> rotateMoveTexture(const float theta, 
 
 void TextureEditor::renderImage(float repeatSize) {
 
-  if (_selectedTexture < 0 || _selectedTexture >= _textureList.size())
+  if (_selectedTexture < 0 || (!_isPBR && _selectedTexture >= _textureList.size()) ||
+      (_isPBR && _selectedTexture >= _pbrTextureList.size()))
     return;
 
   const glm::vec2 contentSize = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
@@ -57,8 +64,10 @@ void TextureEditor::renderImage(float repeatSize) {
   const auto [p1, p2, p3, p4] = rotateMoveTexture(_theta, p_min, {p_max.x, p_min.y}, p_max,
                                                   {p_min.x, p_max.y}, center, _offset * contentSize);
 
-  drawList->AddImageQuad((ImTextureID)(intptr_t)_textureList[_selectedTexture]->id(), p1, p2, p3, p4, uv1,
-                         uv2, uv3, uv4);
+  drawList->AddImageQuad((ImTextureID)(intptr_t)(!_isPBR
+                                                     ? _textureList[_selectedTexture]->id()
+                                                     : _pbrTextureList[_selectedTexture]->basecolor().id()),
+                         p1, p2, p3, p4, uv1, uv2, uv3, uv4);
 }
 
 void TextureEditor::renderList() {
@@ -70,13 +79,26 @@ void TextureEditor::renderList() {
 
     const float imageWidth = ImGui::GetContentRegionAvail().x;
 
-    for (int i = 0; i < _textureList.size(); i++) {
+    if (!_isPBR) {
+      for (int i = 0; i < _textureList.size(); i++) {
 
-      if (ImGui::ImageSelectable(std::format("##{} selectable", _textureList[i]->path()).c_str(),
-                                 (ImTextureID)(intptr_t)_textureList[i]->id(), _selectedTexture == i,
-                                 {imageWidth, imageWidth / _textureList[i]->aspect()},
-                                 _textureList[i]->name())) {
-        _selectedTexture = i;
+        if (ImGui::ImageSelectable(std::format("##{} selectable", _textureList[i]->path()).c_str(),
+                                   (ImTextureID)(intptr_t)_textureList[i]->id(), _selectedTexture == i,
+                                   {imageWidth, imageWidth / _textureList[i]->aspect()},
+                                   _textureList[i]->name())) {
+          _selectedTexture = i;
+        }
+      }
+    } else {
+      for (int i = 0; i < _pbrTextureList.size(); i++) {
+
+        if (ImGui::ImageSelectable(
+                std::format("##{} selectable", _pbrTextureList[i]->basecolor().path()).c_str(),
+                (ImTextureID)(intptr_t)_pbrTextureList[i]->basecolor().id(), _selectedTexture == i,
+                {imageWidth, imageWidth / _pbrTextureList[i]->basecolor().aspect()},
+                _pbrTextureList[i]->basecolor().name())) {
+          _selectedTexture = i;
+        }
       }
     }
 
@@ -110,6 +132,9 @@ void TextureEditor::controls() {
 
   ImGui::SeparatorText("Texture");
   {
+    if (selectedPBR() != nullptr)
+      selectedPBR()->controls();
+
     if (_autoCalculate && !_solved) {
 
       _model.calculateParameterization(_solvingMode, 0.0f);
@@ -118,7 +143,11 @@ void TextureEditor::controls() {
 
     if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
 
-      add(Utils::FileDialog::openImageDialog());
+      if (!_isPBR) {
+        add(Utils::File::pickImage());
+      } else {
+        add(Utils::File::pickFolder(), 0.0f);
+      }
     }
 
     renderList();
@@ -144,9 +173,40 @@ bool TextureEditor::add(const std::string &imagePath) {
   return true;
 }
 
+bool TextureEditor::add(const std::string &textrueDirectory, float heightScale) {
+
+  // check image path is not empty and exists
+  if (textrueDirectory.empty() || !std::filesystem::exists(textrueDirectory) ||
+      !std::filesystem::is_directory(textrueDirectory))
+    return false;
+
+  // // check image path is not already in texture list
+  // for (const auto &i : _textureList) {
+  //   if (i->path() == textrueDirectory)
+  //     return false;
+  // }
+
+  auto textrueDirectoryPath = std::filesystem::path(textrueDirectory);
+
+  std::string basecolorPath = (textrueDirectoryPath / "basecolor.jpg").string();
+  std::string normalPath = (textrueDirectoryPath / "normal.jpg").string();
+  std::string heightPath = (textrueDirectoryPath / "height.jpg").string();
+
+  if (!std::filesystem::exists(basecolorPath) || !std::filesystem::exists(normalPath) ||
+      !std::filesystem::exists(heightPath))
+    return false;
+
+  _pbrTextureList.push_back(
+      std::make_unique<PBRTexture>(textrueDirectory, basecolorPath, normalPath, heightPath, heightScale));
+  PBRTexture::saveTextureList(_pbrTextureList, _textureListPath);
+
+  return true;
+}
+
 void TextureEditor::handleTextureInput() {
 
-  if (_selectedTexture < 0 || _selectedTexture >= _textureList.size()) {
+  if (_selectedTexture < 0 || (!_isPBR && _selectedTexture >= _textureList.size()) ||
+      (_isPBR && _selectedTexture >= _pbrTextureList.size())) {
 
     if (ImGui::IsWindowHovered()) {
       ImGui::SetMouseCursor(ImGuiMouseCursor_NotAllowed);

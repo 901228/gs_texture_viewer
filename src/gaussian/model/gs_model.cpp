@@ -10,6 +10,7 @@
 #include "utils/camera/camera.hpp"
 
 #include "rasterizer/rasterizer.hpp"
+#include "utils/utils.hpp"
 
 GaussianModel::GaussianModel(int sh_degree, int device) : _sh_degree(sh_degree) {
 
@@ -201,6 +202,6 @@ void GaussianModel::controls() {
   }
 }
 
-glm::vec3 GaussianModel::center() const { return Utils::getModelCenter(_boxmin, _boxmax); }
+glm::vec3 GaussianModel::center() const { return Utils::center(_boxmin, _boxmax); }
 GaussianGLData &GaussianModel::gaussianGLData() const { return *_gsGLData; }
 int GaussianModel::count() const { return gsCount; }

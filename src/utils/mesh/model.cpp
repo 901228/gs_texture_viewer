@@ -24,8 +24,6 @@ Model::Model()
     : _renderingProgram(std::make_unique<Program>(PROJECT_DIR "/src/shaders/shader.vert",
                                                   PROJECT_DIR "/src/shaders/shader.frag",
                                                   PROJECT_DIR "/src/shaders/shader.geom")),
-      _selectingProgram(std::make_unique<Program>(PROJECT_DIR "/src/shaders/shader.vert",
-                                                  PROJECT_DIR "/src/shaders/selecting.frag", "")),
       _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
 
   _mesh.request_vertex_status();
@@ -51,17 +49,11 @@ Model::~Model() {
 size_t Model::n_faces() const { return _mesh.n_faces(); }
 size_t Model::n_vertices() const { return _mesh.n_faces() * 3; }
 
-const Program &Model::use(bool isSelect) {
+glm::vec3 Model::center() const { return Utils::center(_boxmin, _boxmax); }
 
-  if (isSelect) {
-    _selectingProgram->use();
-    glBindVertexArray(_vertexArrayObject);
-    return *_selectingProgram;
-  } else {
-    _renderingProgram->use();
-    glBindVertexArray(_vertexArrayObject);
-    return *_renderingProgram;
-  }
+void Model::use() {
+  _renderingProgram->use();
+  glBindVertexArray(_vertexArrayObject);
 }
 
 void Model::unUse() {
@@ -111,20 +103,27 @@ void Model::initMesh() {
   std::vector<glm::vec3> normals;
   for (const MyMesh::FaceHandle &i : _mesh.faces()) {
     for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
-      _vertices.emplace_back(Utils::toGlm(_mesh.point(j)));
+      glm::vec3 v = Utils::toGlm(_mesh.point(j));
+      _vertices.emplace_back(v);
       normals.emplace_back(Utils::toGlm(_mesh.normal(j)));
       _mesh.set_texcoord2D(j, {0, 0});
+
+      _boxmin = glm::min(_boxmin, v);
+      _boxmax = glm::max(_boxmax, v);
     }
   }
 
-  std::vector<GLint> selectIdx(n_faces() * 3, -1);
-  std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_faces() * 3, {0, 0});
+  size_t vertexCount = n_faces() * 3;
+  std::vector<GLint> selectIdx(vertexCount, -1);
+  std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(vertexCount, {0, 0});
+  std::vector<glm::vec3> tangent = std::vector<glm::vec3>(vertexCount, {0, 0, 0});
+  std::vector<glm::vec3> bitangent = std::vector<glm::vec3>(vertexCount, {0, 0, 0});
 
   glGenVertexArrays(1, &_vertexArrayObject);
   glBindVertexArray(_vertexArrayObject);
 
-  _vertexBufferObject = new GLuint[4];
-  glGenBuffers(4, _vertexBufferObject);
+  _vertexBufferObject = new GLuint[6];
+  glGenBuffers(6, _vertexBufferObject);
 
   glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[0]);
   glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_vertices.size() * sizeof(glm::vec3)), _vertices.data(),
@@ -151,6 +150,18 @@ void Model::initMesh() {
   glVertexAttribIPointer(3, 1, GL_INT, 0, nullptr);
   glEnableVertexAttribArray(3);
 
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[4]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(tangent.size() * sizeof(glm::vec3)), tangent.data(),
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnableVertexAttribArray(4);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[5]);
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(bitangent.size() * sizeof(glm::vec3)), bitangent.data(),
+               GL_STATIC_DRAW);
+  glVertexAttribPointer(5, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnableVertexAttribArray(5);
+
   _elementAmount = static_cast<GLsizei>(n_faces() * 3);
 
   INFO("faces count: {}", n_faces());
@@ -159,19 +170,17 @@ void Model::initMesh() {
   unUse();
 }
 
-void Model::setupUniformsCommon(const Program &program, const Camera &camera) {
+void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextureCoords, bool isRenderTexture,
+                          int currentTextureId, const std::vector<std::unique_ptr<ImageTexture>> &textureList,
+                          float textureRadius, const glm::vec2 &textureOffset, float textureTheta,
+                          const glm::vec3 &lightDirection, float lightIntensity) {
 
-  program.setMat4("projection_matrix", camera.projectionMatrixPointer());
-  program.setMat4("view_matrix", camera.viewMatrixPointer());
+  _renderingProgram->setMat4("projection_matrix", camera.projectionMatrixPointer());
+  _renderingProgram->setMat4("view_matrix", camera.viewMatrixPointer());
 
   // model matrix
   auto model = glm::identity<glm::mat4>();
-  program.setMat4("model_matrix", glm::value_ptr(model));
-}
-
-void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextureCoords, bool isRenderTexture,
-                          int currentTextureId, const std::vector<std::unique_ptr<ImageTexture>> &textureList,
-                          float textureRadius, const glm::vec2 &textureOffset, float textureTheta) {
+  _renderingProgram->setMat4("model_matrix", glm::value_ptr(model));
 
   _renderingProgram->setVec3("viewPos", glm::value_ptr(camera.eye()));
 
@@ -181,10 +190,11 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
   // light
   //   _renderingProgram->setVec3("dirLight[0].direction",
   //                    glm::value_ptr(glm::vec3(6.0f, 5.0f, 10.0f)));
-  _renderingProgram->setVec3("dirLight[0].direction", glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
+  _renderingProgram->setVec3("dirLight[0].direction", glm::value_ptr(lightDirection));
   _renderingProgram->setVec3("dirLight[0].color", glm::value_ptr(glm::vec3(1.0f, 1.0f, 1.0f)));
-  _renderingProgram->setVec3("dirLight[1].direction", glm::value_ptr(glm::vec3(-12.0f, -10.0f, -20.0f)));
-  _renderingProgram->setVec3("dirLight[1].color", glm::value_ptr(glm::vec3(1.0f, 1.0f, 1.0f)));
+  _renderingProgram->setFloat("dirLight[0].intensity", lightIntensity);
+  // _renderingProgram->setVec3("dirLight[1].direction", glm::value_ptr(glm::vec3(-12.0f, -10.0f, -20.0f)));
+  // _renderingProgram->setVec3("dirLight[1].color", glm::value_ptr(glm::vec3(1.0f, 1.0f, 1.0f)));
 
   _renderingProgram->setInt("isEditTexture", currentTextureId != -1);
   _renderingProgram->setInt("currentSL", currentTextureId);
@@ -194,24 +204,25 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
   _renderingProgram->setVec2("textureOffset", glm::value_ptr(textureOffset));
   _renderingProgram->setFloat("textureTheta", glm::radians(textureTheta));
 
-  for (int i = 0; i < textureList.size(); i++) {
-    textureList[i]->setupUniforms(*_renderingProgram, i);
-  }
+  // for (int i = 0; i < textureList.size(); i++) {
+  //   textureList[i]->setupUniforms(*_renderingProgram, i);
+  // }
 }
 
-void Model::render(const Camera &camera, bool isSelect, bool renderSelectedOnly, bool isWire,
-                   bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
+void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, bool isRenderTextureCoords,
+                   bool isRenderTexture, int currentTextureId,
                    const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
-                   const glm::vec2 &textureOffset, float textureTheta) {
+                   const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
+                   const glm::vec3 &lightDirection, float lightIntensity) {
 
-  const Program &program = use(isSelect);
-  setupUniformsCommon(program, camera);
-  if (!isSelect) {
-    setupUniforms(camera, isWire, isRenderTextureCoords, isRenderTexture, currentTextureId, textureList,
-                  textureRadius, textureOffset, textureTheta);
-  }
+  use();
+  setupUniforms(camera, isWire, isRenderTextureCoords, isRenderTexture, currentTextureId, textureList,
+                textureRadius, textureOffset, textureTheta, lightDirection, lightIntensity);
 
-  if (!isSelect && !_selectedID->empty()) {
+  if (pbrTexture != nullptr)
+    pbrTexture->setupUniforms(*_renderingProgram);
+
+  if (!_selectedID->empty()) {
     _renderingProgram->setInt("isRenderSelect", true);
 
     std::vector<GLint> first;
@@ -307,32 +318,47 @@ void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, float an
 
 void Model::updateTexcoordVAO() {
 
-  // update texcoord VAO buffer
+  const size_t vertexCount = n_faces() * 3;
+
+  // texcoord
   glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
-  void *ptr = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-  const size_t size = n_vertices();
-  auto *data = new glm::vec2[size];
-  memcpy(data, ptr, sizeof(glm::vec2) * size);
+  glm::vec2 *texcoord = reinterpret_cast<glm::vec2 *>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE));
 
-  int index = -1;
-  for (const MyMesh::FaceHandle fh : _mesh.faces()) {
+  // tangent
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[4]);
+  glm::vec3 *tangent = reinterpret_cast<glm::vec3 *>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE));
 
+  // bitangent
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[5]);
+  glm::vec3 *bitangent = reinterpret_cast<glm::vec3 *>(glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE));
+
+  for (const unsigned int &faceId : *_selectedID) {
+    MyMesh::FaceHandle fh = _mesh.face_handle(faceId);
+
+    int index = faceId * 3;
     for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
 
-      const MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(vh);
+      const MyMesh::TexCoord2D _tc = _mesh.texcoord2D(vh);
+      const OpenMesh::Vec3f _t = _mesh.data(vh).tangent;
+      const OpenMesh::Vec3f _bt = _mesh.data(vh).bitangent;
+
+      texcoord[index] = {_tc[0], _tc[1]};
+      tangent[index] = {_t[0], _t[1], _t[2]};
+      bitangent[index] = {_bt[0], _bt[1], _bt[2]};
       index++;
-
-      if (data[index].x != -1 || data[index].y != -1) {
-
-        if (_selectedID->find(fh.idx()) == _selectedID->end())
-          continue;
-      }
-      data[index] = {texCoord[0], texCoord[1]};
     }
   }
 
-  memcpy(ptr, data, sizeof(glm::vec2) * size);
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[2]);
   glUnmapBuffer(GL_ARRAY_BUFFER);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[4]);
+  glUnmapBuffer(GL_ARRAY_BUFFER);
+
+  glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[5]);
+  glUnmapBuffer(GL_ARRAY_BUFFER);
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 std::vector<TextureLine> Model::getSelectedTextureLines() {

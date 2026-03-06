@@ -101,8 +101,8 @@ void TextureGaussianModel::_loadPly(const char *geometryPlyPath, const char *app
                                    static_cast<unsigned int>(faceIds[i]));
   }
 
-  _boxmin = _scenemin;
-  _boxmax = _scenemax;
+  GaussianModel::_boxmin = _scenemin;
+  GaussianModel::_boxmax = _scenemax;
 
   // Allocate and fill the GPU data
   cudaAllocCopy(&_pos_cuda, gsCount, pos, _gsCountA, posA);
@@ -180,8 +180,8 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
-  float *boxmin = _cropping ? (float *)&_boxmin : nullptr;
-  float *boxmax = _cropping ? (float *)&_boxmax : nullptr;
+  float *boxmin = _cropping ? glm::value_ptr(GaussianModel::_boxmin) : nullptr;
+  float *boxmax = _cropping ? glm::value_ptr(GaussianModel::_boxmax) : nullptr;
   CudaRasterizer::forward(_geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA,
                           _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
                           nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
@@ -203,7 +203,7 @@ void TextureGaussianModel::controls() {
   ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
                Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
 
-  ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.005f, "%.4f");
+  ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.02f, "%.4f");
 }
 
 bool TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {

@@ -8,8 +8,8 @@
 
 namespace ImGui {
 
-bool ImageSelectable(const char *id, ImTextureID texture, bool selected, ImVec2 size,
-                     const std::string &tooltip = "");
+IMGUI_API bool ImageSelectable(const char *id, ImTextureID texture, bool selected, ImVec2 size,
+                               const std::string &tooltip = "");
 
 } // namespace ImGui
 

@@ -1,9 +1,11 @@
 #include "model_panel.hpp"
 
 #include <glad/gl.h>
+#include <memory>
 
 #include "main_window.hpp"
-#include "utils/camera/trackball_camera.hpp"
+#include "utils/camera/trackball_camera_three.hpp"
+#include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
@@ -16,8 +18,9 @@ ModelPanel::~ModelPanel() { detach(); }
 void ModelPanel::_attach() {
 
   model = std::make_unique<Model>((char *)(PROJECT_DIR "/assets/models/armadillo.obj"));
-  camera = std::make_unique<TrackballCamera>(-6.0f);
-  _textureEditor = std::make_unique<TextureEditor>(*model);
+  camera = std::make_unique<TrackballCameraThree>(-6.0f);
+  camera->setCenter(model->center());
+  _textureEditor = std::make_unique<TextureEditor>(*model, true);
 }
 
 void ModelPanel::_detach() {}
@@ -44,10 +47,10 @@ void ModelPanel::_render() {
     glClearBufferfv(GL_COLOR, 0, background);
     glClearBufferfv(GL_DEPTH, 0, &one);
 
-    model->render(*camera, false, false, wire, _renderingMode == RenderingMode::TextureCoords,
+    model->render(*camera, false, wire, _renderingMode == RenderingMode::TextureCoords,
                   _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
-                  _textureEditor->theta());
+                  _textureEditor->theta(), _textureEditor->selectedPBR(), _lightDir, _lightIntensity);
 
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
@@ -90,6 +93,7 @@ void ModelPanel::_controls() {
 
     if (ImGui::BeginTabItem("options")) {
 
+      // TODO: add render mode (texture coords, mesh, texture)
       ImGui::SeparatorText("Render Option");
       {
         ImGui::Checkbox("wire", &wire);
@@ -98,9 +102,14 @@ void ModelPanel::_controls() {
       }
       ImGui::NewLine();
 
-      // TODO: add render mode (texture coords, mesh, texture)
+      ImGui::SeparatorText("Light");
+      {
+        ImGui::GizmoArrow2D("##Light Direction", _lightDir);
+        ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
+      }
+      ImGui::NewLine();
 
-      camera->controls({});
+      camera->controls(model->center());
 
       ImGui::EndTabItem();
     }

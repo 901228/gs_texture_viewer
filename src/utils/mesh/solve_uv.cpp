@@ -490,6 +490,12 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
         // Transform geodesic coords to [0,1] UV space
         glm::vec2 uv = v.surfaceVector * uvScale + 0.5f;
         originMesh.set_texcoord2D(vh, {uv.x, uv.y});
+
+        // get tangent / bitangent from frame
+        glm::vec3 t = v.frame.axes[0];
+        glm::vec3 b = v.frame.axes[1];
+        originMesh.data(vh).tangent = {t.x, t.y, t.z};
+        originMesh.data(vh).bitangent = {b.x, b.y, b.z};
       }
     }
   }

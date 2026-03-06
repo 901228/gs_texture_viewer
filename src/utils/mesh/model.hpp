@@ -30,7 +30,6 @@ protected:
 
 protected:
   std::unique_ptr<Program> _renderingProgram;
-  std::unique_ptr<Program> _selectingProgram;
   unsigned int _vertexArrayObject = 0;
   unsigned int *_vertexBufferObject = nullptr;
   int _elementAmount = 0;
@@ -47,19 +46,20 @@ public:
   [[nodiscard]] size_t n_vertices() const;
 
 public:
-  const Program &use(bool isSelect = false);
+  void use();
   static void unUse();
 
 public:
-  static void setupUniformsCommon(const Program &program, const Camera &camera);
   void setupUniforms(const Camera &camera, bool isWire = false, bool isRenderTextureCoords = false,
                      bool isRenderTexture = false, int currentTextureId = -1,
                      const std::vector<std::unique_ptr<ImageTexture>> &textureList = {},
-                     float textureRadius = 0, const glm::vec2 &textureOffset = {}, float textureTheta = 0);
-  virtual void render(const Camera &camera, bool isSelect, bool renderSelectedOnly, bool isWire,
-                      bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
+                     float textureRadius = 0, const glm::vec2 &textureOffset = {}, float textureTheta = 0,
+                     const glm::vec3 &lightDirection = {0.0f, -1.0f, 0.0f}, float lightIntensity = 1.0f);
+  virtual void render(const Camera &camera, bool renderSelectedOnly, bool isWire, bool isRenderTextureCoords,
+                      bool isRenderTexture, int currentTextureId,
                       const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
-                      const glm::vec2 &textureOffset, float textureTheta);
+                      const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
+                      const glm::vec3 &lightDirection, float lightIntensity);
 
 protected:
   std::unique_ptr<std::unordered_set<unsigned int>> _selectedID;
@@ -82,6 +82,13 @@ public:
 
 protected:
   virtual void updateTexcoordVAO();
+
+protected:
+  glm::vec3 _boxmin{std::numeric_limits<float>::max()};
+  glm::vec3 _boxmax{-std::numeric_limits<float>::max()};
+
+public:
+  [[nodiscard]] glm::vec3 center() const;
 };
 
 #endif // !MODEL_HPP

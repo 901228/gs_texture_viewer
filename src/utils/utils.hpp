@@ -2,6 +2,7 @@
 #define UTILS_HPP
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 
@@ -12,7 +13,9 @@
 #include <ImGui/imgui.h>
 
 #include <magic_enum/magic_enum.hpp>
+#include <nfd.hpp>
 
+#include "logger.hpp"
 #include "mesh/mesh.hpp"
 
 namespace Utils {
@@ -40,11 +43,46 @@ template <typename EnumType> inline std::string_view name(EnumType value) {
   return magic_enum::enum_name(value);
 }
 
-namespace FileDialog {
+inline glm::vec3 center(glm::vec3 boxmin, glm::vec3 boxmax) { return (boxmin + boxmax) * 0.5f; }
 
-std::string openImageDialog();
+namespace File {
 
-} // namespace FileDialog
+inline std::string pickImage() {
+
+  nfdu8filteritem_t filters[1] = {{"Image", "jpg,JPG,jpeg,JPEG,png,PNG"}};
+
+  NFD::UniquePath outPath;
+  nfdresult_t result = NFD::OpenDialog(outPath, filters, 1);
+  if (result == NFD_OKAY) {
+    return outPath.get();
+  } else if (result == NFD_CANCEL) {
+    // cancel
+  } else {
+    ERROR("Error: {}", NFD::GetError());
+  }
+
+  return "";
+}
+
+inline std::string pickFolder() {
+
+  NFD::UniquePath outPath;
+  nfdresult_t result = NFD::PickFolder(outPath);
+  if (result == NFD_OKAY) {
+    return outPath.get();
+  } else if (result == NFD_CANCEL) {
+    // cancel
+  } else {
+    ERROR("Error: {}", NFD_GetError());
+  }
+
+  return "";
+}
+
+inline std::string filename(std::string path) { return std::filesystem::path(path).filename().string(); }
+inline std::string stem(std::string path) { return std::filesystem::path(path).stem().string(); }
+
+} // namespace File
 
 } // namespace Utils
 

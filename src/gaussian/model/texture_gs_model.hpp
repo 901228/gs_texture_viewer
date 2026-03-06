@@ -78,6 +78,7 @@ private:
   CudaRasterizer::RenderingMode _renderingMode = CudaRasterizer::RenderingMode::Color;
 
 public:
+  using GaussianModel::center;
   [[nodiscard]] int count() const override;
 };
 

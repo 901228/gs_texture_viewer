@@ -18,7 +18,7 @@ private:
   std::string_view _textureListPath;
 
 public:
-  explicit TextureEditor(Model &model,
+  explicit TextureEditor(Model &model, bool isPBR = false,
                          const std::string_view textureListPath = TextureEditor::textureListPath,
                          float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 2.0f);
   ~TextureEditor();
@@ -44,14 +44,20 @@ private:
 
 private:
   // texture
+  bool _isPBR = false;
   std::vector<std::unique_ptr<ImageTexture>> _textureList{};
+  std::vector<std::unique_ptr<PBRTexture>> _pbrTextureList{};
   // TODO: how to deselect textrue ?
   int _selectedTexture = -1;
 
 public:
   bool add(const std::string &imagePath);
+  bool add(const std::string &textrueDirectory, float heightScale);
   [[nodiscard]] inline const std::vector<std::unique_ptr<ImageTexture>> &textureList() {
     return _textureList;
+  }
+  [[nodiscard]] inline const std::vector<std::unique_ptr<PBRTexture>> &pbrTextureList() {
+    return _pbrTextureList;
   }
 
   [[nodiscard]] inline int selected() const { return _selectedTexture; }
@@ -60,8 +66,17 @@ public:
       return nullptr;
     return _textureList[_selectedTexture].get();
   }
+  [[nodiscard]] inline PBRTexture *selectedPBR() {
+    if (_selectedTexture < 0 || _selectedTexture >= _pbrTextureList.size())
+      return nullptr;
+    return _pbrTextureList[_selectedTexture].get();
+  }
   inline void setSelected(int i) {
     if (_selectedTexture < _textureList.size() && _selectedTexture >= 0)
+      _selectedTexture = i;
+  }
+  inline void setSelectedPBR(int i) {
+    if (_selectedTexture < _pbrTextureList.size() && _selectedTexture >= 0)
       _selectedTexture = i;
   }
 

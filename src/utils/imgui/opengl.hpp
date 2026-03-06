@@ -6,10 +6,10 @@
 
 namespace ImGui {
 
-bool BeginOpenGL(const char *str_id, const ImVec2 &size = ImVec2(0, 0), bool border = false,
-                 ImGuiWindowFlags flags = 0);
-void EndOpenGL();
-void ClearOpenGL();
+IMGUI_API bool BeginOpenGL(const char *str_id, const ImVec2 &size = ImVec2(0, 0), bool border = false,
+                           ImGuiWindowFlags flags = 0);
+IMGUI_API void EndOpenGL();
+IMGUI_API void ClearOpenGL();
 
 } // namespace ImGui
 

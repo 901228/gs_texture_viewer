@@ -43,6 +43,10 @@ private:
 private:
   // texture
   std::unique_ptr<TextureEditor> _textureEditor;
+
+private:
+  glm::vec3 _lightDir{0, -1, 0};
+  float _lightIntensity = 1.0f;
 };
 
 #endif // !MODEL_PANEL_HPP

@@ -14,6 +14,13 @@ struct MyTraits : OpenMesh::DefaultTraits {
 
   // add normal property to vertices and faces
   VertexAttributes(OpenMesh::Attributes::Normal | OpenMesh::Attributes::TexCoord2D);
+
+  // FaceAttributes(OpenMesh::Attributes::TextureIndex);
+
+  VertexTraits {
+    OpenMesh::Vec3f tangent{0, 0, 0};
+    OpenMesh::Vec3f bitangent{0, 0, 0};
+  };
 };
 typedef OpenMesh::PolyMesh_ArrayKernelT<MyTraits> MyMesh;
 
