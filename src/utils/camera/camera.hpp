@@ -1,9 +1,6 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
-#include "utils/utils.hpp"
 #pragma once
-
-#include <cstdio>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -25,13 +22,15 @@ public:
   bool canRotateUp;
   float rotateUpRadius;
 
+  float panSpeed;
+
   inline explicit CameraSettings(float fov = 30.0f, float nearPlane = 0.1f, float farPlane = 100.0f,
                                  float cameraDistanceMin = 1.0f, float cameraDistanceMax = 40.0f,
                                  ImGuiMouseButton moveButton = ImGuiMouseButton_Middle,
-                                 bool canRotateUp = false, float rotateUpRadius = 0.8f)
+                                 bool canRotateUp = false, float rotateUpRadius = 0.8f, float panSpeed = 2.0f)
       : fov(fov), nearPlane(nearPlane), farPlane(farPlane), cameraDistanceMin(cameraDistanceMin),
         cameraDistanceMax(cameraDistanceMax), moveButton(moveButton), canRotateUp(canRotateUp),
-        rotateUpRadius(rotateUpRadius) {}
+        rotateUpRadius(rotateUpRadius), panSpeed(panSpeed) {}
 };
 
 class Camera {
@@ -178,21 +177,31 @@ protected:
   // pan
   glm::vec2 _anchorMousePos{};
   glm::vec3 _anchorCenter{};
+  glm::vec3 _panUp{};
+  glm::vec3 _panLeft{};
 
   virtual inline void _onPanStart(const glm::vec2 &ndcMousePos) {
-    _anchorMousePos = Utils::toGlm(ImGui::GetMousePos());
+    _anchorMousePos = ndcMousePos;
     _anchorCenter = center();
+
+    glm::vec3 forward = glm::normalize(center() - eye());
+    _panLeft = normalize(cross(up(), forward));
+    glm::vec3 up = glm::cross(forward, _panLeft);
+    if (glm::length(up) < 1e-6f)
+      _panUp = glm::vec3(0, 1, 0);
+    else {
+      _panUp = glm::normalize(up);
+    }
   }
   virtual inline void _onPanMove(const glm::vec2 &ndcMousePos) {
-    ImVec2 mousePos = ImGui::GetMousePos();
-    glm::vec2 mouseDelta = {mousePos.x - _anchorMousePos.x, mousePos.y - _anchorMousePos.y};
-
-    // TODO: panning
-    // _setCenter({});
-
-    printf("delta: %f, %f\n", mouseDelta.x, mouseDelta.y);
+    glm::vec2 mouseDelta = (ndcMousePos - _anchorMousePos) * _settings.panSpeed;
+    _setCenter(_anchorCenter + _panLeft * mouseDelta.x - _panUp * mouseDelta.y);
   }
-  virtual inline void _onPanEnd() {}
+  virtual inline void _onPanEnd() {
+    _anchorMousePos = {};
+    _panUp = {};
+    _panLeft = {};
+  }
 
 public:
   [[nodiscard]] inline glm::mat4 viewMatrix() const { return _viewMatrix; }
