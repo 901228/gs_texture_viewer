@@ -361,6 +361,10 @@ void Model::updateTexcoordVAO() {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+void Model::updateTexId(TextureEditor &textureEditor) {
+  // TODO: update texture ID buffer
+}
+
 std::vector<TextureLine> Model::getSelectedTextureLines() {
   if (_selectedID->empty())
     return {};

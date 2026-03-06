@@ -300,6 +300,8 @@ __host__ __device__ inline float dot(const vec3 &a, const vec3 &b) {
 __host__ __device__ inline float *value_ptr(vec3 &v) { return &v.x; }
 __host__ __device__ inline const float *value_ptr(const vec3 &v) { return &v.x; }
 
+__host__ __device__ inline const vec3 cross(const vec3 &a, const vec3 &b) { return a.cross(b); }
+
 struct vec4 {
   float x, y, z, w;
 

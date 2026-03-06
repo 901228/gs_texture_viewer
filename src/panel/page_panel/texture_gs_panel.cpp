@@ -8,6 +8,7 @@
 
 #include "gaussian/model/texture_gs_model.hpp"
 #include "utils/camera/trackball_camera_three.hpp"
+#include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
@@ -26,7 +27,7 @@ void TextureGSPanel::_attach() {
   camera = std::make_unique<TrackballCameraThree>(-40.0f, TrackballCameraThreeSettings());
   camera->setCenter(_textureGaussianModel->center());
 
-  _textureEditor = std::make_unique<TextureEditor>(*_textureGaussianModel);
+  _textureEditor = std::make_unique<TextureEditor>(*_textureGaussianModel, true);
 }
 
 void TextureGSPanel::_detach() {}
@@ -49,10 +50,9 @@ void TextureGSPanel::_render() {
         *_textureGaussianModel, [this](float *image_cuda) {
           auto selectedTexture = _textureEditor->selectedTexture();
           _textureGaussianModel->render(*camera, static_cast<int>(_width), static_cast<int>(_height),
-                                        {1.0f, 1.0f, 1.0f}, image_cuda,
-                                        selectedTexture != nullptr ? selectedTexture->cudaTextureId() : 0,
-                                        {_textureEditor->scale(), Utils::toFloat2(_textureEditor->offset()),
-                                         _textureEditor->theta(), _textureRenderMode, _maskCullingMode});
+                                        {1.0f, 1.0f, 1.0f}, image_cuda, *_textureEditor, _textureRenderMode,
+                                        _maskCullingMode,
+                                        {Utils::toFloat3(_lightDir), {1.0f, 1.0f, 1.0f}, _lightIntensity});
         });
 
     ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)textureId, ImVec2(pos.x, pos.y),
@@ -126,6 +126,13 @@ void TextureGSPanel::_controls() {
     if (ImGui::BeginTabItem("options")) {
 
       _textureGaussianModel->controls();
+
+      ImGui::SeparatorText("Light");
+      {
+        ImGui::GizmoArrow2D("##Light Direction", _lightDir);
+        ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
+      }
+      ImGui::NewLine();
 
       camera->controls(_textureGaussianModel->center());
 

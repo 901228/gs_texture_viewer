@@ -19,6 +19,8 @@ class Camera;
 
 typedef std::pair<std::pair<float, float>, std::pair<float, float>> TextureLine;
 
+class TextureEditor;
+
 class Model {
 public:
   explicit Model();
@@ -82,6 +84,9 @@ public:
 
 protected:
   virtual void updateTexcoordVAO();
+
+public:
+  virtual void updateTexId(TextureEditor &textureEditor);
 
 protected:
   glm::vec3 _boxmin{std::numeric_limits<float>::max()};

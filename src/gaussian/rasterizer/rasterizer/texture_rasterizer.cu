@@ -3,23 +3,85 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstdint>
+
 #include <device_launch_parameters.h>
 
 #include "vector/matrix.hpp"
 #include "vector/vector.hpp"
 namespace rs = rasterizer;
 
+__device__ float4 CudaRasterizer::sampleTexture(cudaTextureObject_t texId, float2 texCoord,
+                                                TextureOption textureOption) {
+
+  rs::mat2 rotationMatrix = {std::cosf(textureOption.theta), -std::sinf(textureOption.theta),
+                             std::sinf(textureOption.theta), std::cosf(textureOption.theta)};
+  rs::vec2 t = rotationMatrix * ((rs::vec2(texCoord) - 0.5) * textureOption.scale) + 0.5 +
+               rs::vec2(textureOption.offset);
+  return tex2D<float4>(texId, t.x, t.y);
+}
+
 namespace {
 
-__global__ void clipPosition(const float3 *position, int num_vertices, const float *projviewmatrix,
-                             rs::vec4 *out_clip_pos) {
+struct VertexOut {
+  rs::vec4 clipPos;
+  rs::vec3 position;
+  rs::vec3 normal;
+  rs::vec3 tangent;
+  rs::vec3 bitangent;
+};
+
+__global__ void clipPosition(const rs::vec3 *__restrict__ position,               // per-vertex
+                             const rs::vec3 *__restrict__ normals,                // per-vertex
+                             const rs::vec2 *__restrict__ texCoords,              // per-vertex
+                             const rs::vec3 *__restrict__ tangent,                // per-vertex
+                             const rs::vec3 *__restrict__ bitangent,              // per-vertex
+                             const cudaTextureObject_t *__restrict__ heightTexId, // per-face
+                             CudaRasterizer::TextureOption textureOption, int num_vertices, float heightScale,
+                             const float *__restrict__ projviewmatrix, VertexOut *__restrict__ vertex_out) {
   unsigned int vid = blockIdx.x * blockDim.x + threadIdx.x;
   if (vid >= num_vertices)
     return;
 
-  float3 vertex = position[vid];
+  unsigned int fid = vid / 3;
 
-  out_clip_pos[vid] = rs::mat4(projviewmatrix) * rs::vec4(vertex, 1.0f);
+  rs::vec3 vertex = position[vid];
+  rs::vec2 texCoord = texCoords[vid];
+
+  rs::vec3 N = rs::normalize(normals[vid]);
+  rs::vec3 T = rs::normalize(tangent[vid]);
+  T = rs::normalize(T - rs::dot(T, N) * N);
+  rs::vec3 B = rs::cross(N, T);
+
+  rs::vec3 displacedPos{vertex};
+  if (heightTexId != nullptr && heightTexId[fid] > 0) {
+    // float h = CudaRasterizer::sampleTexture(heightTexId[fid], static_cast<float2>(texCoord),
+    // textureOption).x; displacedPos += N * h * heightScale;
+
+    float epsilon = 0.01f;
+
+    // sample neighboring points
+    float h = CudaRasterizer::sampleTexture(heightTexId[fid], static_cast<float2>(texCoord), textureOption).x;
+    float hR = CudaRasterizer::sampleTexture(
+                   heightTexId[fid], static_cast<float2>(texCoord + rs::vec2(epsilon, 0.0f)), textureOption)
+                   .x;
+    float hU = CudaRasterizer::sampleTexture(
+                   heightTexId[fid], static_cast<float2>(texCoord + rs::vec2(0.0f, epsilon)), textureOption)
+                   .x;
+
+    // displace position
+    displacedPos += N * h * heightScale;
+
+    // use height difference to re-calculate normal
+    rs::vec3 dPdU = T + N * ((hR - h) / epsilon) * heightScale;
+    rs::vec3 dPdV = B + N * ((hU - h) / epsilon) * heightScale;
+    N = rs::normalize(rs::cross(dPdU, dPdV));
+  }
+
+  vertex_out[vid].position = displacedPos;
+  vertex_out[vid].normal = N;
+  vertex_out[vid].tangent = T;
+  vertex_out[vid].bitangent = B;
+  vertex_out[vid].clipPos = rs::mat4(projviewmatrix) * rs::vec4(displacedPos, 1.0f);
 }
 
 /**
@@ -41,12 +103,45 @@ __device__ uint32_t float_to_uint_depth(float f) {
   return u;
 }
 
+__device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+__device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+
+__host__ __device__ inline rs::vec3 reflect(const rs::vec3 &I, const rs::vec3 &N) {
+  return I - N * 2.0f * rs::dot(N, I);
+}
+
+__device__ rs::vec3 calcDirLight(CudaRasterizer::Light light, const rs::vec3 &normal,
+                                 const rs::vec3 &viewDir) {
+
+  rs::vec3 lightDir = rs::normalize(-static_cast<rs::vec3>(light.direction));
+
+  // ambient
+  float amb = 0.1;
+
+  // diffuse
+  float diff = rs::max(dot(normal, lightDir), 0.0);
+
+  // specular
+  float specularStrength = 0.5;
+  rs::vec3 reflectDir = reflect(-lightDir, normal);
+  float spec = pow(rs::max(dot(viewDir, reflectDir), 0.0), 32) * specularStrength;
+
+  // result
+  return (amb + diff + spec) * static_cast<rs::vec3>(light.color) * light.intensity;
+}
+
 // for each triangle
-__global__ void render(const float3 *__restrict__ position,        // per-vertex
-                       const rs::vec4 *__restrict__ clip_pos,      // per-vertex
-                       const float2 *__restrict__ texCoords,       // per-vertex
-                       const cudaTextureObject_t *__restrict__ sl, // per-face
-                       int num_triangles, const float *__restrict__ viewpos, int width, int height,
+__global__ void render(const rs::vec2 *__restrict__ texCoords,                 // per-vertex
+                       const VertexOut *__restrict__ fs_in,                    // per-vertex
+                       const cudaTextureObject_t *__restrict__ basecolorTexId, // per-face
+                       const cudaTextureObject_t *__restrict__ normalTexId,    // per-face
+                       int num_triangles, CudaRasterizer::TextureOption textureOption,
+                       CudaRasterizer::Light lightDirection, const float *__restrict__ viewpos, int width,
+                       int height,
                        uint32_t *__restrict__ depth_buffer, // temp uint depth buffer for atomicMin
                        CudaRasterizer::MaskCullingMode maskCullingMode,
                        CudaRasterizer::PixelMask *__restrict__ mask) {
@@ -59,24 +154,21 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
   int i1 = static_cast<int>(prim_id) * 3 + 1;
   int i2 = static_cast<int>(prim_id) * 3 + 2;
 
-  // extract clip position of each triangle vertex
-  rs::vec4 c0 = clip_pos[i0];
-  rs::vec4 c1 = clip_pos[i1];
-  rs::vec4 c2 = clip_pos[i2];
+  // extract VertexOut of each triangle vertex
+  VertexOut v0 = fs_in[i0];
+  VertexOut v1 = fs_in[i1];
+  VertexOut v2 = fs_in[i2];
 
   // get texture coordinates
-  float2 uv0 = texCoords[i0];
-  float2 uv1 = texCoords[i1];
-  float2 uv2 = texCoords[i2];
-
-  // get texture ID
-  cudaTextureObject_t texId = sl[prim_id];
+  rs::vec2 uv0 = texCoords[i0];
+  rs::vec2 uv1 = texCoords[i1];
+  rs::vec2 uv2 = texCoords[i2];
 
   // Perspective divide → NDC
   // (screenX, screenY, depth)
-  rs::vec3 ndc0 = rs::vec3(c0) / (c0.w + FLT_EPSILON);
-  rs::vec3 ndc1 = rs::vec3(c1) / (c1.w + FLT_EPSILON);
-  rs::vec3 ndc2 = rs::vec3(c2) / (c2.w + FLT_EPSILON);
+  rs::vec3 ndc0 = rs::vec3(v0.clipPos) / (v0.clipPos.w + FLT_EPSILON);
+  rs::vec3 ndc1 = rs::vec3(v1.clipPos) / (v1.clipPos.w + FLT_EPSILON);
+  rs::vec3 ndc2 = rs::vec3(v2.clipPos) / (v2.clipPos.w + FLT_EPSILON);
 
   if (isnan(ndc0.x) || isnan(ndc1.x) || isnan(ndc2.x) || isnan(ndc0.y) || isnan(ndc1.y) || isnan(ndc2.y) ||
       isnan(ndc0.z) || isnan(ndc1.z) || isnan(ndc2.z)) {
@@ -98,11 +190,8 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
   int maxY = rs::min(height - 1, rs::ceil(rs::max(rs::max(s0.y, s1.y), s2.y)));
 
   float area = edge_function(s0, s1, s2);
-  if (area == 0.0f || // 2 vertices are on the same line
-      (maskCullingMode == CudaRasterizer::MaskCullingMode::NormalCulling &&
-       area < 0.0f) // area < 0 → CW  → back face
-  )
-    return; // degenerate triangle
+  if (area == 0.0f) // 2 vertices are on the same line
+    return;         // degenerate triangle
 
   // iterate over all pixels in the bounding box (triangle)
   for (int py = minY; py <= maxY; py++) {
@@ -124,12 +213,10 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
         continue;
 
       // barycentric coordinates are normalized to [0, 1]
-      float bary0 = w0 / area;
-      float bary1 = w1 / area;
-      float bary2 = w2 / area;
+      rs::vec3 bary = {w0 / area, w1 / area, w2 / area};
 
       // interpolate depth from barycentric coordinates
-      float depth = bary0 * ndc0.z + bary1 * ndc1.z + bary2 * ndc2.z;
+      float depth = bary.x * ndc0.z + bary.y * ndc1.z + bary.z * ndc2.z;
 
       // depth test: atomicMin ensures the nearest primitive wins
       uint32_t depth_uint = float_to_uint_depth(depth);
@@ -141,15 +228,56 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
 
         CudaRasterizer::PixelMask &m = mask[pixel];
 
-        m.mask = 1;
-        m.texId = texId;
+        // interpolate normal
+        rs::vec3 N = rs::normalize(barycentric(bary, v0.normal, v1.normal, v2.normal));
+        // interpolate world position
+        rs::vec3 worldPos = barycentric(bary, v0.position, v1.position, v2.position);
+        rs::vec3 viewDir = rs::normalize(rs::vec3(viewpos) - worldPos);
 
-        float2 uv;
-        uv.x = bary0 * uv0.x + bary1 * uv1.x + bary2 * uv2.x;
-        uv.y = bary0 * uv0.y + bary1 * uv1.y + bary2 * uv2.y;
+        if (maskCullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) {
+          // back face culling
+          if (rs::dot(N, viewDir) <= 0.0f) {
+            m.mask = 0;
+            continue;
+          }
+        }
+
+        m.mask = 1;
+
+        float2 uv = static_cast<float2>(barycentric(bary, uv0, uv1, uv2));
         m.texCoords = uv;
 
-        m.depth = bary0 * c0.w + bary1 * c1.w + bary2 * c2.w;
+        if (basecolorTexId != nullptr && basecolorTexId[prim_id] > 0) {
+          float4 c = CudaRasterizer::sampleTexture(basecolorTexId[prim_id], uv, textureOption);
+
+          if (normalTexId == nullptr || normalTexId[prim_id] <= 0) {
+            m.color.x = c.x;
+            m.color.y = c.y;
+            m.color.z = c.z;
+          } else {
+
+            // TBN matrix (all in world/view space)
+            rs::vec3 T = rs::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
+            // Gram-Schmidt, make sure T is orthogonal to new N
+            T = rs::normalize(T - rs::dot(T, N) * N);
+            rs::vec3 B = rs::cross(N, T);
+            rs::mat3 TBN = rs::mat3(T, B, N);
+
+            // normal map
+            float4 mapN = CudaRasterizer::sampleTexture(normalTexId[prim_id], uv, textureOption);
+            rs::vec3 mapN_ = rs::vec3(mapN.x, mapN.y, mapN.z) * 2.0 - 1.0;
+            rs::vec3 norm = normalize(TBN * mapN_);
+
+            // lighting
+            rs::vec3 lightingResult = calcDirLight(lightDirection, norm, viewDir) * rs::vec3(c.x, c.y, c.z);
+
+            m.color.x = lightingResult.x;
+            m.color.y = lightingResult.y;
+            m.color.z = lightingResult.z;
+          }
+        }
+
+        m.depth = bary.x * v0.clipPos.w + bary.y * v1.clipPos.w + bary.z * v2.clipPos.w;
       }
     }
   }
@@ -157,20 +285,24 @@ __global__ void render(const float3 *__restrict__ position,        // per-vertex
 
 } // namespace
 
-void CudaRasterizer::makeMask(const float *position, const float *texCoords, int num_vertices,
-                              const cudaTextureObject_t *sl, int num_triangles, int width, int height,
-                              const float *projviewmatrix, const float *viewpos,
-                              MaskCullingMode maskCullingMode, PixelMask *mask) {
+void CudaRasterizer::makeMask(const float *position, const float *normal, const float *texCoords,
+                              const float *tangents, const float *bitangents, int num_vertices,
+                              const cudaTextureObject_t *basecolorTexId,
+                              const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
+                              TextureOption textureOption, float heightScale, Light lightDirection,
+                              int num_triangles, int width, int height, const float *projviewmatrix,
+                              const float *viewpos, MaskCullingMode maskCullingMode, PixelMask *mask) {
 
-  if (position == nullptr || texCoords == nullptr || sl == nullptr)
+  if (position == nullptr || texCoords == nullptr || basecolorTexId == nullptr || normalTexId == nullptr ||
+      heightTexId == nullptr)
     return;
 
-  rs::vec4 *clip_pos;
+  VertexOut *vertex_out;
   uint32_t *d_depth;
 
   size_t pixels = (size_t)width * height;
 
-  cudaMalloc(&clip_pos, num_vertices * sizeof(rs::vec4));
+  cudaMalloc(&vertex_out, num_vertices * sizeof(VertexOut));
   cudaMalloc(&d_depth, pixels * sizeof(uint32_t));
 
   // initialize depth buffer to max value
@@ -180,14 +312,16 @@ void CudaRasterizer::makeMask(const float *position, const float *texCoords, int
   cudaMemset(mask, 0, width * height * sizeof(PixelMask));
 
   // ── Vertex Shader ──
-  clipPosition<<<(num_vertices + 255) / 256, 256>>>((float3 *)position, num_vertices, projviewmatrix,
-                                                    clip_pos);
+  clipPosition<<<(num_vertices + 255) / 256, 256>>>((rs::vec3 *)position, (rs::vec3 *)normal,
+                                                    (rs::vec2 *)texCoords, (rs::vec3 *)tangents,
+                                                    (rs::vec3 *)bitangents, heightTexId, textureOption,
+                                                    num_vertices, heightScale, projviewmatrix, vertex_out);
 
   // ── Rasterize + Fragment Shader ──
-  render<<<(num_triangles + 255) / 256, 256>>>((float3 *)position, clip_pos, (float2 *)texCoords, sl,
-                                               num_triangles, viewpos, width, height, d_depth,
-                                               maskCullingMode, mask);
+  render<<<(num_triangles + 255) / 256, 256>>>((rs::vec2 *)texCoords, vertex_out, basecolorTexId, normalTexId,
+                                               num_triangles, textureOption, lightDirection, viewpos, width,
+                                               height, d_depth, maskCullingMode, mask);
 
-  cudaFree(clip_pos);
+  cudaFree(vertex_out);
   cudaFree(d_depth);
 }

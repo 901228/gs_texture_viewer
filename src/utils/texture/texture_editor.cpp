@@ -79,26 +79,22 @@ void TextureEditor::renderList() {
 
     const float imageWidth = ImGui::GetContentRegionAvail().x;
 
+    auto renderSelectable = [&](int i, const ImageTexture &texture, std::string tooltip) {
+      if (ImGui::ImageSelectable(std::format("##{} selectable", texture.path()).c_str(),
+                                 (ImTextureID)(intptr_t)texture.id(), _selectedTexture == i,
+                                 {imageWidth, imageWidth / texture.aspect()}, tooltip)) {
+        _selectedTexture = i;
+        _model.updateTexId(*this);
+      }
+    };
+
     if (!_isPBR) {
       for (int i = 0; i < _textureList.size(); i++) {
-
-        if (ImGui::ImageSelectable(std::format("##{} selectable", _textureList[i]->path()).c_str(),
-                                   (ImTextureID)(intptr_t)_textureList[i]->id(), _selectedTexture == i,
-                                   {imageWidth, imageWidth / _textureList[i]->aspect()},
-                                   _textureList[i]->name())) {
-          _selectedTexture = i;
-        }
+        renderSelectable(i, *_textureList[i], _textureList[i]->name());
       }
     } else {
       for (int i = 0; i < _pbrTextureList.size(); i++) {
-
-        if (ImGui::ImageSelectable(
-                std::format("##{} selectable", _pbrTextureList[i]->basecolor().path()).c_str(),
-                (ImTextureID)(intptr_t)_pbrTextureList[i]->basecolor().id(), _selectedTexture == i,
-                {imageWidth, imageWidth / _pbrTextureList[i]->basecolor().aspect()},
-                _pbrTextureList[i]->basecolor().name())) {
-          _selectedTexture = i;
-        }
+        renderSelectable(i, _pbrTextureList[i]->basecolor(), _pbrTextureList[i]->name());
       }
     }
 
@@ -291,7 +287,10 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
       auto [minT, selectedID, hitPos] = _model.select(camera, width, height, mousePosInWindow);
 
       if (selectedID >= 0 && selectedID < _model.n_faces()) {
-        _model.selectRadius(selectedID, _brushRadius, isLeftDown);
+        bool dirty = _model.selectRadius(selectedID, _brushRadius - 1, isLeftDown);
+        if (dirty) {
+          _model.updateTexId(*this);
+        }
       }
     }
 

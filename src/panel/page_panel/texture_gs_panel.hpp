@@ -9,7 +9,7 @@
 
 #include "gaussian/view/gs_view.hpp"
 
-#include "rasterizer/texture_rasterizer.hpp"
+#include "rasterizer/defines.hpp"
 
 class TextureEditor;
 class TextureGaussianModel;
@@ -37,12 +37,16 @@ private:
   // gaussian
   GaussianView::RenderingMode currMode = GaussianView::RenderingMode::Splats;
   std::unique_ptr<TextureGaussianModel> _textureGaussianModel;
-  CudaRasterizer::RenderingMode _textureRenderMode = CudaRasterizer::RenderingMode::Texture;
+  CudaRasterizer::TextureOption::RenderingMode _textureRenderMode =
+      CudaRasterizer::TextureOption::RenderingMode::Texture;
   CudaRasterizer::MaskCullingMode _maskCullingMode = CudaRasterizer::MaskCullingMode::DepthComparison;
 
 private:
   // texture
   std::unique_ptr<TextureEditor> _textureEditor;
+
+  glm::vec3 _lightDir{0, -1, 0};
+  float _lightIntensity = 1.0f;
 };
 
 #endif // !GS_TEXTURE_PANEL_HPP

@@ -6,8 +6,13 @@
 
 namespace CudaRasterizer {
 
-void makeMask(const float *position, const float *texCoords, int num_vertices, const cudaTextureObject_t *sl,
-              int num_triangles, int width, int height, const float *projviewmatrix, const float *viewpos,
+__device__ float4 sampleTexture(cudaTextureObject_t texId, float2 texCoord, TextureOption textureOption = {});
+
+void makeMask(const float *position, const float *normal, const float *texCoords, const float *tangents,
+              const float *bitangents, int num_vertices, const cudaTextureObject_t *basecolorTexId,
+              const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
+              TextureOption textureOption, float heightScale, Light lightDirection, int num_triangles,
+              int width, int height, const float *projviewmatrix, const float *viewpos,
               MaskCullingMode maskCullingMode, PixelMask *mask);
 
 } // namespace CudaRasterizer

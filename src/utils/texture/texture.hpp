@@ -99,6 +99,8 @@ public:
 
   [[nodiscard]] inline float heightScale() const { return _heightScale; }
 
+  [[nodiscard]] inline std::string name() const { return _name; }
+
 public:
   struct PBRTextureLocation {
     std::string basecolor;

@@ -29,6 +29,7 @@ inline ImVec2 toImVec2(const glm::vec2 &v) { return {v.x, v.y}; }
 inline glm::vec2 toGlm(const MyMesh::TexCoord2D &p) { return {p[0], p[1]}; }
 
 inline float2 toFloat2(const glm::vec2 &v) { return {v.x, v.y}; }
+inline float3 toFloat3(const glm::vec3 &v) { return {v.x, v.y, v.z}; }
 
 template <typename EnumType> inline std::string enumToImGuiCombo() {
 

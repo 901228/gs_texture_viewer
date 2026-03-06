@@ -332,12 +332,12 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
       // Keep track of current position in range
       contributor++;
 
-      if (!found && depths[collected_id[j]] > mesh_depth) {
-        found = true;
+      // if (!found && depths[collected_id[j]] > mesh_depth) {
+      //   found = true;
 
-        // T is the rest available contribution for this gs
-        visible = T >= threshold;
-      }
+      //   // T is the rest available contribution for this gs
+      //   // visible = T >= threshold;
+      // }
 
       // Resample using conic matrix (cf. "Surface
       // Splatting" by Zwicker et al., 2001)
@@ -381,6 +381,13 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
     final_T[pix_id] = T;
     n_contrib[pix_id] = last_contributor;
 
+    pixelDepth += T * depthMax; // background compensation
+
+    visible = hasMask && mesh_depth - pixelDepth < 1.0f;
+    // if (hasMask && T > threshold) {
+    //   visible = false;
+    // }
+
     // whether to override the GS color with the texture color
     bool overrideColor =
         (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
@@ -400,21 +407,13 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
           out_color[1 * H * W + pix_id] = m.texCoords.y;
           out_color[2 * H * W + pix_id] = 0.0f;
         } else if (textureOption.mode == CudaRasterizer::TextureOption::RenderingMode::Texture) {
-          rs::mat2 rotationMatrix = {cosf(textureOption.theta), -sinf(textureOption.theta),
-                                     sinf(textureOption.theta), cosf(textureOption.theta)};
-          rs::vec2 t =
-              rotationMatrix * ((rs::vec2(m.texCoords.x, m.texCoords.y) - 0.5) * textureOption.scale) + 0.5 +
-              rs::vec2(textureOption.offset);
-          auto color = tex2D<float4>(m.texId, t.x, t.y);
-
-          out_color[0 * H * W + pix_id] = color.x;
-          out_color[1 * H * W + pix_id] = color.y;
-          out_color[2 * H * W + pix_id] = color.z;
+          out_color[0 * H * W + pix_id] = m.color.x;
+          out_color[1 * H * W + pix_id] = m.color.y;
+          out_color[2 * H * W + pix_id] = m.color.z;
         }
       }
     } else if (renderingMode == CudaRasterizer::RenderingMode::Depth) {
 
-      pixelDepth += T * depthMax; // background compensation
       for (int ch = 0; ch < CHANNELS; ch++)
         out_color[ch * H * W + pix_id] = (depthMax - pixelDepth) / (depthMax - DEPTH_MIN);
 

@@ -4,6 +4,7 @@
 
 #include "gs_model.hpp"
 #include "utils/mesh/model.hpp"
+#include "utils/texture/texture_editor.hpp"
 
 #include "rasterizer/defines.hpp"
 
@@ -14,8 +15,9 @@ public:
   ~TextureGaussianModel() override;
 
   void render(const Camera &camera, const int &width, const int &height, const glm::vec3 &clearColor,
-              float *image_cuda, cudaTextureObject_t texId,
-              const CudaRasterizer::TextureOption &textureOption = {});
+              float *image_cuda, TextureEditor &textureEditor,
+              CudaRasterizer::TextureOption::RenderingMode textureRenderingMode,
+              CudaRasterizer::MaskCullingMode maskCullingMode, CudaRasterizer::Light light);
   void controls() override;
 
 private:
@@ -68,14 +70,22 @@ private:
   // input
   float *_proj_view_cuda = nullptr;
   float *_model_position_cuda = nullptr;
+  float *_model_normal_cuda = nullptr;
   float *_model_texCoords_cuda = nullptr;
-  cudaTextureObject_t *_model_sl_cuda = nullptr;
+  float *_model_tangent_cuda = nullptr;
+  float *_model_bitangent_cuda = nullptr;
+  cudaTextureObject_t *_model_basecolor_map_cuda = nullptr;
+  cudaTextureObject_t *_model_normal_map_cuda = nullptr;
+  cudaTextureObject_t *_model_height_map_cuda = nullptr;
 
   // output
   CudaRasterizer::PixelMask *_mask_cuda = nullptr;
   CudaRasterizer::TextureOption::RenderingMode mode = CudaRasterizer::TextureOption::RenderingMode::Texture;
 
   CudaRasterizer::RenderingMode _renderingMode = CudaRasterizer::RenderingMode::Color;
+
+public:
+  void updateTexId(TextureEditor &textureEditor) override;
 
 public:
   using GaussianModel::center;

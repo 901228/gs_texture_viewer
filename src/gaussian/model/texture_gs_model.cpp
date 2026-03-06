@@ -7,6 +7,7 @@
 
 #include "gs_model.hpp"
 #include "ply.hpp"
+#include "rasterizer/defines.hpp"
 #include "rasterizer/texture_rasterizer.hpp"
 #include "utils.hpp"
 #include "utils/camera/camera.hpp"
@@ -26,8 +27,13 @@ TextureGaussianModel::~TextureGaussianModel() {
 
   //
   cudaFree(_model_position_cuda);
+  cudaFree(_model_normal_cuda);
   cudaFree(_model_texCoords_cuda);
-  cudaFree(_model_sl_cuda);
+  cudaFree(_model_tangent_cuda);
+  cudaFree(_model_bitangent_cuda);
+  cudaFree(_model_basecolor_map_cuda);
+  cudaFree(_model_normal_map_cuda);
+  cudaFree(_model_height_map_cuda);
 
   //
   cudaFree(_proj_view_cuda);
@@ -144,9 +150,30 @@ void TextureGaussianModel::initMesh() {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
 }
 
+void TextureGaussianModel::updateTexId(TextureEditor &textureEditor) {
+
+  size_t faceCount = _selectedID->size();
+  auto selectedTexture = textureEditor.selectedPBR();
+  std::vector<cudaTextureObject_t> basecolorIdx(
+      faceCount, selectedTexture != nullptr ? selectedTexture->basecolor().cudaTextureId() : 0);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_basecolor_map_cuda, basecolorIdx.data(),
+                                   sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
+  std::vector<cudaTextureObject_t> normalIdx(
+      faceCount, selectedTexture != nullptr ? selectedTexture->normal().cudaTextureId() : 0);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_normal_map_cuda, normalIdx.data(),
+                                   sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
+  std::vector<cudaTextureObject_t> heightIdx(
+      faceCount, selectedTexture != nullptr ? selectedTexture->height().cudaTextureId() : 0);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_height_map_cuda, heightIdx.data(),
+                                   sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
+}
+
 void TextureGaussianModel::render(const Camera &camera, const int &width, const int &height,
-                                  const glm::vec3 &clearColor, float *image_cuda, cudaTextureObject_t texId,
-                                  const CudaRasterizer::TextureOption &textureOption) {
+                                  const glm::vec3 &clearColor, float *image_cuda,
+                                  TextureEditor &textureEditor,
+                                  CudaRasterizer::TextureOption::RenderingMode textureRenderingMode,
+                                  CudaRasterizer::MaskCullingMode maskCullingMode,
+                                  CudaRasterizer::Light light) {
 
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_background_cuda, glm::value_ptr(clearColor), sizeof(glm::vec3), cudaMemcpyHostToDevice));
@@ -171,12 +198,15 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
 
   // render selection
   size_t faceCount = _selectedID->size();
-  std::vector<cudaTextureObject_t> selectIdx(faceCount, texId);
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_sl_cuda, selectIdx.data(), sizeof(cudaTextureObject_t) * faceCount,
-                                   cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(CudaRasterizer::makeMask(_model_position_cuda, _model_texCoords_cuda, faceCount * 3,
-                                          _model_sl_cuda, faceCount, width, height, _proj_view_cuda,
-                                          _cam_pos_cuda, textureOption.cullingMode, _mask_cuda));
+  auto selectedTexture = textureEditor.selectedPBR();
+  CudaRasterizer::TextureOption textureOption{textureEditor.scale(), Utils::toFloat2(textureEditor.offset()),
+                                              textureEditor.theta(), textureRenderingMode, maskCullingMode};
+  CUDA_SAFE_CALL(CudaRasterizer::makeMask(
+      _model_position_cuda, _model_normal_cuda, _model_texCoords_cuda, _model_tangent_cuda,
+      _model_bitangent_cuda, faceCount * 3, _model_basecolor_map_cuda, _model_normal_map_cuda,
+      _model_height_map_cuda, textureOption,
+      selectedTexture != nullptr ? selectedTexture->heightScale() : 0.0f, light, faceCount, width, height,
+      _proj_view_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
@@ -224,7 +254,10 @@ void TextureGaussianModel::updateData() {
   size_t vertexCount = faceCount * 3;
 
   std::vector<glm::vec3> v{};
+  std::vector<glm::vec3> n{};
   std::vector<glm::vec2> t{};
+  std::vector<glm::vec3> tangent{};
+  std::vector<glm::vec3> bitangent{};
 
   for (const auto &fid : *_selectedID) {
     MyMesh::FaceHandle fh = _mesh.face_handle(fid);
@@ -232,23 +265,45 @@ void TextureGaussianModel::updateData() {
     for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
 
       v.push_back(Utils::toGlm(_mesh.point(vh)));
+      n.push_back(Utils::toGlm(_mesh.normal(vh)));
       t.push_back(Utils::toGlm(_mesh.texcoord2D(vh)));
+      tangent.push_back(Utils::toGlm(_mesh.data(vh).tangent));
+      bitangent.push_back(Utils::toGlm(_mesh.data(vh).bitangent));
     }
   }
 
   // free old data
   cudaFree(_model_position_cuda);
+  cudaFree(_model_normal_cuda);
   cudaFree(_model_texCoords_cuda);
-  cudaFree(_model_sl_cuda);
+  cudaFree(_model_tangent_cuda);
+  cudaFree(_model_bitangent_cuda);
+  cudaFree(_model_basecolor_map_cuda);
+  cudaFree(_model_normal_map_cuda);
+  cudaFree(_model_height_map_cuda);
 
   // allocate new data
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_position_cuda, sizeof(glm::vec3) * vertexCount));
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_model_position_cuda, v.data(), sizeof(glm::vec3) * vertexCount, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_normal_cuda, sizeof(glm::vec3) * vertexCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMemcpy(_model_normal_cuda, n.data(), sizeof(glm::vec3) * vertexCount, cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_texCoords_cuda, sizeof(glm::vec2) * vertexCount));
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_model_texCoords_cuda, t.data(), sizeof(glm::vec2) * vertexCount, cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_sl_cuda, sizeof(cudaTextureObject_t) * faceCount));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_tangent_cuda, sizeof(glm::vec3) * vertexCount));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_tangent_cuda, tangent.data(), sizeof(glm::vec3) * vertexCount,
+                                   cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_bitangent_cuda, sizeof(glm::vec3) * vertexCount));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_bitangent_cuda, bitangent.data(), sizeof(glm::vec3) * vertexCount,
+                                   cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_model_basecolor_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_model_normal_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_model_height_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
 }
 
 void TextureGaussianModel::updateTexcoordVAO() {
@@ -256,27 +311,38 @@ void TextureGaussianModel::updateTexcoordVAO() {
   // update texcoord VAO buffer
   size_t faceCount = _selectedID->size();
   size_t vertexCount = faceCount * 3;
-  auto *data = new glm::vec2[vertexCount];
+  auto *texcoordPtr = new glm::vec2[vertexCount];
+  auto *tangentPtr = new glm::vec3[vertexCount];
+  auto *bitangentPtr = new glm::vec3[vertexCount];
 
   // copy from CUDA
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(texcoordPtr, _model_texCoords_cuda, sizeof(glm::vec2) * vertexCount,
+                                   cudaMemcpyDeviceToHost));
   CUDA_SAFE_CALL_ALWAYS(
-      cudaMemcpy(data, _model_texCoords_cuda, sizeof(glm::vec2) * vertexCount, cudaMemcpyDeviceToHost));
+      cudaMemcpy(tangentPtr, _model_tangent_cuda, sizeof(glm::vec3) * vertexCount, cudaMemcpyDeviceToHost));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(bitangentPtr, _model_bitangent_cuda, sizeof(glm::vec3) * vertexCount,
+                                   cudaMemcpyDeviceToHost));
 
-  int index = -1;
+  int index = 0;
   for (const auto &fid : *_selectedID) {
     MyMesh::FaceHandle fh = _mesh.face_handle(fid);
 
     for (const MyMesh::VertexHandle vh : _mesh.fv_range(fh)) {
 
-      const MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(vh);
+      texcoordPtr[index] = Utils::toGlm(_mesh.texcoord2D(vh));
+      tangentPtr[index] = Utils::toGlm(_mesh.data(vh).tangent);
+      bitangentPtr[index] = Utils::toGlm(_mesh.data(vh).bitangent);
       index++;
-      data[index] = {texCoord[0], texCoord[1]};
     }
   }
 
   // copy to CUDA
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_texCoords_cuda, texcoordPtr, sizeof(glm::vec2) * vertexCount,
+                                   cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL_ALWAYS(
-      cudaMemcpy(_model_texCoords_cuda, data, sizeof(glm::vec2) * vertexCount, cudaMemcpyHostToDevice));
+      cudaMemcpy(_model_tangent_cuda, tangentPtr, sizeof(glm::vec3) * vertexCount, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_bitangent_cuda, bitangentPtr, sizeof(glm::vec3) * vertexCount,
+                                   cudaMemcpyHostToDevice));
 }
 
 void TextureGaussianModel::clearSelect() {
@@ -285,10 +351,20 @@ void TextureGaussianModel::clearSelect() {
 
   cudaFree(_model_position_cuda);
   _model_position_cuda = nullptr;
+  cudaFree(_model_normal_cuda);
+  _model_normal_cuda = nullptr;
   cudaFree(_model_texCoords_cuda);
   _model_texCoords_cuda = nullptr;
-  cudaFree(_model_sl_cuda);
-  _model_sl_cuda = nullptr;
+  cudaFree(_model_tangent_cuda);
+  _model_tangent_cuda = nullptr;
+  cudaFree(_model_bitangent_cuda);
+  _model_bitangent_cuda = nullptr;
+  cudaFree(_model_basecolor_map_cuda);
+  _model_basecolor_map_cuda = nullptr;
+  cudaFree(_model_normal_map_cuda);
+  _model_normal_map_cuda = nullptr;
+  cudaFree(_model_height_map_cuda);
+  _model_height_map_cuda = nullptr;
 }
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }

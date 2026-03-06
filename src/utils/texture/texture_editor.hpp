@@ -51,6 +51,8 @@ private:
   int _selectedTexture = -1;
 
 public:
+  const bool isPBR() const { return _isPBR; }
+
   bool add(const std::string &imagePath);
   bool add(const std::string &textrueDirectory, float heightScale);
   [[nodiscard]] inline const std::vector<std::unique_ptr<ImageTexture>> &textureList() {
@@ -61,12 +63,17 @@ public:
   }
 
   [[nodiscard]] inline int selected() const { return _selectedTexture; }
+  [[nodiscard]] inline const ImageTexture *selectedTexture() const {
+    if (_selectedTexture < 0 || _selectedTexture >= _textureList.size())
+      return nullptr;
+    return _textureList[_selectedTexture].get();
+  }
   [[nodiscard]] inline ImageTexture *selectedTexture() {
     if (_selectedTexture < 0 || _selectedTexture >= _textureList.size())
       return nullptr;
     return _textureList[_selectedTexture].get();
   }
-  [[nodiscard]] inline PBRTexture *selectedPBR() {
+  [[nodiscard]] inline PBRTexture *selectedPBR() const {
     if (_selectedTexture < 0 || _selectedTexture >= _pbrTextureList.size())
       return nullptr;
     return _pbrTextureList[_selectedTexture].get();
