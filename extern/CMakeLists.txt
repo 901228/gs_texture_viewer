@@ -47,10 +47,12 @@ add_subdirectory(spdlog)
 add_subdirectory(tomlplusplus)
 
 add_library(stb
-  stb/stb_image.h
-  stb/stb_image.cpp
-  stb/stb_image_resize2.h
-  stb/stb_image_resize2.cpp
+  stb/stb/stb_image.h
+  stb/stb/stb_image.cpp
+  stb/stb/stb_image_resize2.h
+  stb/stb/stb_image_resize2.cpp
+  stb/stb/stb_include.h
+  stb/stb/stb_include.cpp
 )
 target_include_directories(stb PUBLIC "stb/")
 

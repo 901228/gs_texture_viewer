@@ -4,10 +4,10 @@
 
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <string>
 
 #include <glad/gl.h>
+#include <stb/stb_include.h>
 
 #include "../logger.hpp"
 
@@ -34,21 +34,14 @@ private:
 
     std::string absPath = std::filesystem::absolute(path).string();
 
-    std::ifstream file;
-    std::string line, file_content;
-    file.open(absPath);
-    if (file.is_open()) {
-
-      do {
-
-        std::getline(file, line);
-        file_content += line + '\n';
-      } while (!file.eof());
-      file.close();
-    } else {
-
-      ERROR("Cannot find shader file at: {}", absPath);
+    char error[256];
+    char *shader_string =
+        stb_include_file(const_cast<char *>(absPath.c_str()), nullptr, const_cast<char *>("shaders/"), error);
+    if (shader_string == nullptr) {
+      throw std::runtime_error(std::format("Failed to load shader file {}: {}", absPath, error));
     }
+    std::string file_content{shader_string};
+    free(shader_string);
 
     return file_content;
   }
