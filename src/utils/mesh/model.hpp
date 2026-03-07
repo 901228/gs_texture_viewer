@@ -24,7 +24,7 @@ class TextureEditor;
 class Model {
 public:
   explicit Model();
-  explicit Model(char *path);
+  explicit Model(const char *path);
   virtual ~Model();
 
 protected:

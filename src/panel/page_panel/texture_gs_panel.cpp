@@ -20,9 +20,9 @@ TextureGSPanel::TextureGSPanel() : _textureGaussianModel(nullptr), camera(nullpt
 TextureGSPanel::~TextureGSPanel() { detach(); }
 
 void TextureGSPanel::_attach() {
-  _textureGaussianModel =
-      std::make_unique<TextureGaussianModel>((char *)(PROJECT_DIR "/assets/gs/armadillo/geo.ply"),
-                                             (char *)(PROJECT_DIR "/assets/gs/armadillo/app.ply"), 3, 0);
+  _textureGaussianModel = std::make_unique<TextureGaussianModel>(
+      Utils::Path::getAssetsPath("gs/armadillo/geo.ply").c_str(),
+      Utils::Path::getAssetsPath("gs/armadillo/app.ply").c_str(), 3, 0);
 
   camera = std::make_unique<TrackballCameraThree>(-40.0f, TrackballCameraThreeSettings());
   camera->setCenter(_textureGaussianModel->center());

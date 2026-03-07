@@ -6,19 +6,40 @@
 
 #include "gs_gl_data.hpp"
 #include "ply.hpp"
-#include "utils.hpp"
 #include "utils/camera/camera.hpp"
 
 #include "rasterizer/rasterizer.hpp"
 #include "utils/utils.hpp"
 
+namespace {
+
+inline std::function<char *(size_t N)> resizeFunctional(void **ptr, size_t &S) {
+  auto lambda = [ptr, &S](size_t N) {
+    if (N > S) {
+      if (*ptr)
+        CUDA_SAFE_CALL(cudaFree(*ptr));
+      CUDA_SAFE_CALL(cudaMalloc(ptr, 2 * N));
+      S = 2 * N;
+    }
+    return reinterpret_cast<char *>(*ptr);
+  };
+  return lambda;
+}
+
+void flipRow(glm::mat4 &mat, int row) {
+  for (int c = 0; c < 4; ++c)
+    mat[c][row] *= -1.0f;
+};
+
+} // namespace
+
 GaussianModel::GaussianModel(int sh_degree, int device) : _sh_degree(sh_degree) {
 
   _initCuda(device);
 
-  _geomBufferFunc = Utils::resizeFunctional(&_geomPtr, _allocdGeom);
-  _binningBufferFunc = Utils::resizeFunctional(&_binningPtr, _allocdBinning);
-  _imgBufferFunc = Utils::resizeFunctional(&_imgPtr, _allocdImg);
+  _geomBufferFunc = resizeFunctional(&_geomPtr, _allocdGeom);
+  _binningBufferFunc = resizeFunctional(&_binningPtr, _allocdBinning);
+  _imgBufferFunc = resizeFunctional(&_imgPtr, _allocdImg);
 }
 
 GaussianModel::GaussianModel(const char *plyPath, int sh_degree, int device)
@@ -124,13 +145,6 @@ void GaussianModel::_loadPly(const char *plyPath) {
   _gsGLData = std::make_unique<GaussianGLData>(P, (float *)pos.data(), (float *)rot.data(),
                                                (float *)scale.data(), opacity.data(), (float *)shs.data());
 }
-
-namespace {
-void flipRow(glm::mat4 &mat, int row) {
-  for (int c = 0; c < 4; ++c)
-    mat[c][row] *= -1.0f;
-};
-} // namespace
 
 void GaussianModel::uploadColmapViewPorjMatrix(const Camera &camera) const {
 

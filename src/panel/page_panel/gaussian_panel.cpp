@@ -12,7 +12,7 @@ GaussianPanel::GaussianPanel() : _gsModel(nullptr), camera(nullptr) {}
 GaussianPanel::~GaussianPanel() { detach(); }
 
 void GaussianPanel::_attach() {
-  _gsModel = std::make_unique<GaussianModel>((char *)(PROJECT_DIR "/assets/gs/armadillo.ply"), 3, 0);
+  _gsModel = std::make_unique<GaussianModel>(Utils::Path::getAssetsPath("gs/armadillo.ply").c_str(), 3, 0);
   camera = std::make_unique<ImGuizmoCamera>(10.0f);
 }
 

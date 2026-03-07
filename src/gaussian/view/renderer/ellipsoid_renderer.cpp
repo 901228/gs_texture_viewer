@@ -6,12 +6,12 @@
 #include "../../model/gs_gl_data.hpp"
 #include "utils/camera/camera.hpp"
 #include "utils/logger.hpp"
+#include "utils/utils.hpp"
 
 EllipsoidRenderer::EllipsoidRenderer() {
 
-  program =
-      std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.vert",
-                                PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.frag", "", "", "");
+  program = std::make_unique<Program>(Utils::Path::getShaderPath("gs/ellipsoid.vert"),
+                                      Utils::Path::getShaderPath("gs/ellipsoid.frag"), "", "", "");
 
   glCreateTextures(GL_TEXTURE_2D, 1, &idTexture);
   glTextureParameteri(idTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

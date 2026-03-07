@@ -11,13 +11,14 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <nfd.h>
-#include <stb_image.h>
+#include <stb/stb_image.h>
 
 #include "panel/page_panel/gaussian_panel.hpp"
 #include "panel/page_panel/model_panel.hpp"
 #include "panel/page_panel/texture_gs_panel.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/logger.hpp"
+#include "utils/utils.hpp"
 
 MainWindow::MainWindow(bool isMultiViewport) {
 
@@ -67,7 +68,8 @@ bool MainWindow::Init(bool isMultiViewport) {
 
     // load icon
     GLFWimage images[1];
-    images[0].pixels = stbi_load(PROJECT_DIR "/icon.png", &images[0].width, &images[0].height, nullptr, 4);
+    images[0].pixels = stbi_load(Utils::Path::getAssetsPath("icons/icon.png").c_str(), &images[0].width,
+                                 &images[0].height, nullptr, 4);
     if (images[0].pixels) {
       glfwSetWindowIcon(window, 1, images);
       stbi_image_free(images[0].pixels);

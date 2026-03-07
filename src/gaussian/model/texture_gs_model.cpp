@@ -9,7 +9,6 @@
 #include "ply.hpp"
 #include "rasterizer/defines.hpp"
 #include "rasterizer/texture_rasterizer.hpp"
-#include "utils.hpp"
 #include "utils/camera/camera.hpp"
 #include "utils/utils.hpp"
 

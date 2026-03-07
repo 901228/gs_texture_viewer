@@ -5,7 +5,6 @@
 #include <cuda_gl_interop.h>
 
 #include "../model/gs_model.hpp"
-#include "../model/utils.hpp"
 #include "renderer/ellipsoid_renderer.hpp"
 #include "renderer/gaussian_renderer.hpp"
 #include "renderer/point_renderer.hpp"

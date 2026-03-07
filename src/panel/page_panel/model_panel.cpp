@@ -17,7 +17,7 @@ ModelPanel::~ModelPanel() { detach(); }
 
 void ModelPanel::_attach() {
 
-  model = std::make_unique<Model>((char *)(PROJECT_DIR "/assets/models/armadillo.obj"));
+  model = std::make_unique<Model>(Utils::Path::getAssetsPath("models/block.obj").c_str());
   camera = std::make_unique<TrackballCameraThree>(-6.0f);
   camera->setCenter(model->center());
   _textureEditor = std::make_unique<TextureEditor>(*model, true);

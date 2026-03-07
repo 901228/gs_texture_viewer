@@ -10,6 +10,7 @@
 #include <stb/stb_include.h>
 
 #include "../logger.hpp"
+#include "../utils.hpp"
 
 class Program {
 
@@ -35,8 +36,8 @@ private:
     std::string absPath = std::filesystem::absolute(path).string();
 
     char error[256];
-    char *shader_string =
-        stb_include_file(const_cast<char *>(absPath.c_str()), nullptr, const_cast<char *>("shaders/"), error);
+    char *shader_string = stb_include_file(const_cast<char *>(absPath.c_str()), nullptr,
+                                           const_cast<char *>(Utils::Path::getShaderPath().c_str()), error);
     if (shader_string == nullptr) {
       throw std::runtime_error(std::format("Failed to load shader file {}: {}", absPath, error));
     }

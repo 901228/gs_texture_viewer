@@ -1,4 +1,5 @@
 #include "tool_line.hpp"
+#include "utils/utils.hpp"
 
 #include <cmath>
 #include <string>
@@ -9,7 +10,7 @@
 
 #include <ImGui/imgui_internal.h>
 
-#include <stb_image.h>
+#include <stb/stb_image.h>
 
 namespace {
 
@@ -43,7 +44,7 @@ private:
   ToolLineHelper() {
 
     int width, height;
-    loadTexture(PROJECT_DIR "/assets/icons/double_arrow.png", &texture_id, &width, &height);
+    loadTexture(Utils::Path::getAssetsPath("icons/double_arrow.png").c_str(), &texture_id, &width, &height);
     float aspect = static_cast<float>(height) / static_cast<float>(width);
 
     radius = getLength({halfW, aspect * halfW});

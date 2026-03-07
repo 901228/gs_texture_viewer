@@ -10,7 +10,7 @@
 
 #include <ImGui/imgui.h>
 
-#include <stb_image.h>
+#include <stb/stb_image.h>
 #include <toml++/toml.hpp>
 
 #include "../gl/program.hpp"

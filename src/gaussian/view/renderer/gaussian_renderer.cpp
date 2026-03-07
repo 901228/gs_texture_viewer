@@ -1,12 +1,12 @@
 #include "gaussian_renderer.hpp"
 
 #include "utils/logger.hpp"
+#include "utils/utils.hpp"
 
 GaussianRenderer::GaussianRenderer() {
 
-  copyProgram =
-      std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.vert",
-                                PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.frag", "", "", "");
+  copyProgram = std::make_unique<Program>(Utils::Path::getShaderPath("gs/copy.vert"),
+                                          Utils::Path::getShaderPath("gs/copy.frag"), "", "", "");
 
   fbo = std::make_unique<FrameBufferHelper>(false, true);
 

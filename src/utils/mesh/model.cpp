@@ -22,20 +22,18 @@
 
 Model::Model()
     : _renderingProgram(std::make_unique<Program>(
-          PROJECT_DIR "/src/shaders/shader.vert", PROJECT_DIR "/src/shaders/shader.frag",
-          PROJECT_DIR "/src/shaders/shader.geom", PROJECT_DIR "/src/shaders/shader.tesc",
-          PROJECT_DIR "/src/shaders/shader.tese")),
+          Utils::Path::getShaderPath("shader.vert"), Utils::Path::getShaderPath("shader.frag"),
+          Utils::Path::getShaderPath("shader.geom"), Utils::Path::getShaderPath("shader.tesc"),
+          Utils::Path::getShaderPath("shader.tese"))),
       _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
-
   _mesh.request_vertex_status();
   _mesh.request_edge_status();
   _mesh.request_face_status();
 }
 
-Model::Model(char *path) : Model() { loadModel(path); }
+Model::Model(const char *path) : Model() { loadModel(path); }
 
 Model::~Model() {
-
   if (_vertexBufferObject != nullptr)
     glDeleteBuffers(4, _vertexBufferObject);
 
@@ -58,13 +56,11 @@ void Model::use() {
 }
 
 void Model::unUse() {
-
   glBindVertexArray(0);
   Program::unUse();
 }
 
 bool Model::loadModel(const char *path) {
-
   this->use();
 
 #if not _MSC_VER
@@ -96,7 +92,6 @@ bool Model::loadModel(const char *path) {
 }
 
 void Model::initMesh() {
-
   _bvh.build(_mesh);
 
   _vertices.clear();
@@ -175,7 +170,6 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
                           int currentTextureId, const std::vector<std::unique_ptr<ImageTexture>> &textureList,
                           float textureRadius, const glm::vec2 &textureOffset, float textureTheta,
                           const glm::vec3 &lightDirection, float lightIntensity) {
-
   _renderingProgram->setMat4("projection_matrix", camera.projectionMatrixPointer());
   _renderingProgram->setMat4("view_matrix", camera.viewMatrixPointer());
 
@@ -217,7 +211,6 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
                    const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
                    const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
                    const glm::vec3 &lightDirection, float lightIntensity) {
-
   use();
   setupUniforms(camera, isWire, isRenderTextureCoords, isRenderTexture, currentTextureId, textureList,
                 textureRadius, textureOffset, textureTheta, lightDirection, lightIntensity);
@@ -250,7 +243,6 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
 }
 
 HitResult Model::select(const Camera &camera, float width, float height, const glm::vec2 &mousePos) const {
-
   float x = 2.0f * (mousePos.x / width) - 1.0f;
   float y = 1.0f - 2.0f * (mousePos.y / height);
   glm::vec4 rayClip(x, y, -1.0f, 1.0f);
@@ -267,7 +259,6 @@ HitResult Model::select(const Camera &camera, float width, float height, const g
 }
 
 bool Model::selectRadius(int id, int radius, bool isAdd) {
-
   if (id < 0 || id >= n_faces())
     return false;
 
@@ -320,7 +311,6 @@ void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, float an
 }
 
 void Model::updateTexcoordVAO() {
-
   const size_t vertexCount = n_faces() * 3;
 
   // texcoord

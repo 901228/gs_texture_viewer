@@ -85,6 +85,26 @@ inline std::string stem(std::string path) { return std::filesystem::path(path).s
 
 } // namespace File
 
+namespace Path {
+
+#ifndef PROJECT_DIR
+#define PROJECT_DIR "."
+#endif
+
+namespace detail {
+inline const std::filesystem::path assetsDirectory = PROJECT_DIR "/assets/";
+inline const std::filesystem::path shaderDirectory = PROJECT_DIR "/shaders/";
+} // namespace detail
+
+inline const std::string getAssetsPath(const std::string &assetsName = "") {
+  return (detail::assetsDirectory / assetsName).string();
+}
+inline const std::string getShaderPath(const std::string &shaderName = "") {
+  return (detail::shaderDirectory / shaderName).string();
+}
+
+} // namespace Path
+
 } // namespace Utils
 
 #endif // !UTILS_HPP

@@ -3,12 +3,12 @@
 #include "../../model/gs_gl_data.hpp"
 #include "utils/camera/camera.hpp"
 #include "utils/logger.hpp"
+#include "utils/utils.hpp"
 
 PointRenderer::PointRenderer() {
 
-  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/alpha_points.vert",
-                                      PROJECT_DIR "/src/gaussian/view/renderer/shader/alpha_points.frag", "",
-                                      "", "");
+  program = std::make_unique<Program>(Utils::Path::getShaderPath("gs/alpha_points.vert"),
+                                      Utils::Path::getShaderPath("gs/alpha_points.frag"), "", "", "");
 
   fbo = std::make_unique<FrameBufferHelper>(false, true);
 }
