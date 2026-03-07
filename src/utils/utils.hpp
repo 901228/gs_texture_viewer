@@ -48,6 +48,10 @@ inline glm::vec3 center(glm::vec3 boxmin, glm::vec3 boxmax) { return (boxmin + b
 
 namespace File {
 
+namespace detail {
+inline const std::array ImageExtensions = {".png", ".jpg", ".jpeg"};
+}
+
 inline std::string pickImage() {
 
   nfdu8filteritem_t filters[1] = {{"Image", "jpg,JPG,jpeg,JPEG,png,PNG"}};
@@ -83,6 +87,8 @@ inline std::string pickFolder() {
 inline std::string filename(std::string path) { return std::filesystem::path(path).filename().string(); }
 inline std::string stem(std::string path) { return std::filesystem::path(path).stem().string(); }
 
+inline const decltype(detail::ImageExtensions) &getImageExtensions() { return detail::ImageExtensions; }
+
 } // namespace File
 
 namespace Path {
@@ -92,15 +98,15 @@ namespace Path {
 #endif
 
 namespace detail {
-inline const std::filesystem::path assetsDirectory = PROJECT_DIR "/assets/";
-inline const std::filesystem::path shaderDirectory = PROJECT_DIR "/shaders/";
+inline const std::filesystem::path AssetsDirectory = PROJECT_DIR "/assets/";
+inline const std::filesystem::path ShaderDirectory = PROJECT_DIR "/shaders/";
 } // namespace detail
 
 inline const std::string getAssetsPath(const std::string &assetsName = "") {
-  return (detail::assetsDirectory / assetsName).string();
+  return (detail::AssetsDirectory / assetsName).string();
 }
 inline const std::string getShaderPath(const std::string &shaderName = "") {
-  return (detail::shaderDirectory / shaderName).string();
+  return (detail::ShaderDirectory / shaderName).string();
 }
 
 } // namespace Path

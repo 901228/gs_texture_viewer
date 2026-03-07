@@ -173,8 +173,11 @@ bool TextureEditor::add(const std::string &textrueDirectory, float heightScale) 
 
   // check image path is not empty and exists
   if (textrueDirectory.empty() || !std::filesystem::exists(textrueDirectory) ||
-      !std::filesystem::is_directory(textrueDirectory))
+      !std::filesystem::is_directory(textrueDirectory)) {
+
+    ERROR("Directory not found: {}", textrueDirectory);
     return false;
+  }
 
   // // check image path is not already in texture list
   // for (const auto &i : _textureList) {
@@ -183,17 +186,30 @@ bool TextureEditor::add(const std::string &textrueDirectory, float heightScale) 
   // }
 
   auto textrueDirectoryPath = std::filesystem::path(textrueDirectory);
+  auto checkPath = [&](const std::string &name) {
+    std::optional<std::string> result;
+    for (const auto &ext : Utils::File::getImageExtensions()) {
+      auto path = textrueDirectoryPath / (name + ext);
+      WARN("{}", path.string());
+      if (std::filesystem::exists(path)) {
+        result = path.string();
+        break;
+      }
+    }
+    if (!result) {
+      ERROR("File not found: {}", (textrueDirectoryPath / name).string());
+    }
+    return result;
+  };
+  auto basecolorPath = checkPath("basecolor");
+  auto normalPath = checkPath("normal");
+  auto heightPath = checkPath("height");
 
-  std::string basecolorPath = (textrueDirectoryPath / "basecolor.jpg").string();
-  std::string normalPath = (textrueDirectoryPath / "normal.jpg").string();
-  std::string heightPath = (textrueDirectoryPath / "height.jpg").string();
-
-  if (!std::filesystem::exists(basecolorPath) || !std::filesystem::exists(normalPath) ||
-      !std::filesystem::exists(heightPath))
+  if (!basecolorPath.has_value() || !normalPath.has_value() || !heightPath.has_value())
     return false;
 
-  _pbrTextureList.push_back(
-      std::make_unique<PBRTexture>(textrueDirectory, basecolorPath, normalPath, heightPath, heightScale));
+  _pbrTextureList.push_back(std::make_unique<PBRTexture>(
+      textrueDirectory, basecolorPath.value(), normalPath.value(), heightPath.value(), heightScale));
   PBRTexture::saveTextureList(_pbrTextureList, _textureListPath);
 
   return true;
