@@ -96,6 +96,8 @@ bool MainWindow::Init(bool isMultiViewport) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // glEnable(GL_PROGRAM_POINT_SIZE);
+
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
   }
 
   // ImGui initialization

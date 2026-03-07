@@ -4,8 +4,9 @@
 
 GaussianRenderer::GaussianRenderer() {
 
-  copyProgram = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.vert",
-                                          PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.frag", "");
+  copyProgram =
+      std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.vert",
+                                PROJECT_DIR "/src/gaussian/view/renderer/shader/copy.frag", "", "", "");
 
   fbo = std::make_unique<FrameBufferHelper>(false, true);
 

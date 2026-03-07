@@ -21,9 +21,10 @@
 #include "../utils.hpp"
 
 Model::Model()
-    : _renderingProgram(std::make_unique<Program>(PROJECT_DIR "/src/shaders/shader.vert",
-                                                  PROJECT_DIR "/src/shaders/shader.frag",
-                                                  PROJECT_DIR "/src/shaders/shader.geom")),
+    : _renderingProgram(std::make_unique<Program>(
+          PROJECT_DIR "/src/shaders/shader.vert", PROJECT_DIR "/src/shaders/shader.frag",
+          PROJECT_DIR "/src/shaders/shader.geom", PROJECT_DIR "/src/shaders/shader.tesc",
+          PROJECT_DIR "/src/shaders/shader.tese")),
       _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
 
   _mesh.request_vertex_status();
@@ -207,6 +208,8 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
   // for (int i = 0; i < textureList.size(); i++) {
   //   textureList[i]->setupUniforms(*_renderingProgram, i);
   // }
+
+  _renderingProgram->setFloat("tessLevel", GL_MAX_TESS_GEN_LEVEL);
 }
 
 void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, bool isRenderTextureCoords,
@@ -229,13 +232,13 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
     for (const unsigned int i : *_selectedID)
       first.push_back(static_cast<int>(i * 3));
     std::vector<GLsizei> count(_selectedID->size(), 3);
-    glMultiDrawArrays(GL_TRIANGLES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
+    glMultiDrawArrays(GL_PATCHES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
 
     _renderingProgram->setInt("isRenderSelect", false);
   }
 
   if (!renderSelectedOnly) {
-    glDrawArrays(GL_TRIANGLES, 0, _elementAmount);
+    glDrawArrays(GL_PATCHES, 0, _elementAmount);
   }
 
   unUse();

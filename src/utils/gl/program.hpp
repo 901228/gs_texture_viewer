@@ -15,9 +15,11 @@ class Program {
 
 public:
   inline Program(const std::string &vertexShaderPath, const std::string &fragmentShaderPath,
-                 const std::string &geometryShaderPath) {
+                 const std::string &geometryShaderPath, const std::string &tessellationControlShaderPath,
+                 const std::string &tessellationEvaluationShaderPath) {
 
-    startup(vertexShaderPath, fragmentShaderPath, geometryShaderPath);
+    startup(vertexShaderPath, fragmentShaderPath, geometryShaderPath, tessellationControlShaderPath,
+            tessellationEvaluationShaderPath);
   }
 
   inline Program(const char *vertexShader_s, const char *fragmentShader_s) {
@@ -75,61 +77,78 @@ public:
 
 private:
   void setup_shaders(const char *vertex_shader_content, const char *fragment_shader_content,
-                     const char *geometry_shader_content = nullptr) {
+                     const char *geometry_shader_content = nullptr,
+                     const char *tessellation_control_shader_content = nullptr,
+                     const char *tessellation_evaluation_shader_content = nullptr) {
 
-    bool isGeomExist = !(geometry_shader_content == nullptr || strcmp(geometry_shader_content, "") == 0);
+    auto compile = [&](GLenum type, const char *src) -> GLuint {
+      if (!src || strcmp(src, "") == 0)
+        return 0;
+      GLuint s = glCreateShader(type);
+      glShaderSource(s, 1, &src, nullptr);
+      glCompileShader(s);
+      printShaderLog(s);
+      return s;
+    };
 
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_shader_content, nullptr);
-    glCompileShader(vertex_shader);
-    printShaderLog(vertex_shader);
-
-    GLuint geometry_shader = 0;
-    if (isGeomExist) {
-
-      geometry_shader = glCreateShader(GL_GEOMETRY_SHADER);
-      glShaderSource(geometry_shader, 1, &geometry_shader_content, nullptr);
-      glCompileShader(geometry_shader);
-      printShaderLog(geometry_shader);
-    }
-
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_shader_content, nullptr);
-    glCompileShader(fragment_shader);
-    printShaderLog(fragment_shader);
+    GLuint vs = compile(GL_VERTEX_SHADER, vertex_shader_content);
+    GLuint tcs = compile(GL_TESS_CONTROL_SHADER, tessellation_control_shader_content);
+    GLuint tes = compile(GL_TESS_EVALUATION_SHADER, tessellation_evaluation_shader_content);
+    GLuint gs = compile(GL_GEOMETRY_SHADER, geometry_shader_content);
+    GLuint fs = compile(GL_FRAGMENT_SHADER, fragment_shader_content);
 
     renderingProgram = glCreateProgram();
-    glAttachShader(renderingProgram, vertex_shader);
-    if (isGeomExist)
-      glAttachShader(renderingProgram, geometry_shader);
-    glAttachShader(renderingProgram, fragment_shader);
+    if (vs) {
+      glAttachShader(renderingProgram, vs);
+    }
+    if (tcs) {
+      glAttachShader(renderingProgram, tcs);
+    }
+    if (tes) {
+      glAttachShader(renderingProgram, tes);
+    }
+    if (gs) {
+      glAttachShader(renderingProgram, gs);
+    }
+    if (fs) {
+      glAttachShader(renderingProgram, fs);
+    }
     glLinkProgram(renderingProgram);
 
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-    if (isGeomExist) {
-      glDeleteShader(geometry_shader);
+    for (GLuint s : {vs, tcs, tes, gs, fs}) {
+      if (s) {
+        glDeleteShader(s);
+      }
     }
-
     glUseProgram(0);
   }
 
   void startup(const std::string &vertexShaderPath, const std::string &fragmentShaderPath,
-               const std::string &geometryShaderPath) {
+               const std::string &geometryShaderPath, const std::string &tessellationControlShaderPath,
+               const std::string &tessellationEvaluationShaderPath) {
 
     std::string vertex_shader_string;
     std::string fragment_shader_string;
-    std::string selecting_fragment_shader_string;
     std::string geometry_shader_string;
+    std::string tessellation_control_shader_string;
+    std::string tessellation_evaluation_shader_string;
     if (!vertexShaderPath.empty())
       vertex_shader_string = loadShaderFile(vertexShaderPath);
     if (!fragmentShaderPath.empty())
       fragment_shader_string = loadShaderFile(fragmentShaderPath);
     if (!geometryShaderPath.empty())
       geometry_shader_string = loadShaderFile(geometryShaderPath);
+    if (!tessellationControlShaderPath.empty())
+      tessellation_control_shader_string = loadShaderFile(tessellationControlShaderPath);
+    if (!tessellationEvaluationShaderPath.empty())
+      tessellation_evaluation_shader_string = loadShaderFile(tessellationEvaluationShaderPath);
 
-    setup_shaders(vertex_shader_string.c_str(), fragment_shader_string.c_str(),
-                  geometry_shader_string.empty() ? nullptr : geometry_shader_string.c_str());
+    setup_shaders(
+        vertex_shader_string.c_str(), fragment_shader_string.c_str(),
+        geometry_shader_string.empty() ? nullptr : geometry_shader_string.c_str(),
+        tessellation_control_shader_string.empty() ? nullptr : tessellation_control_shader_string.c_str(),
+        tessellation_evaluation_shader_string.empty() ? nullptr
+                                                      : tessellation_evaluation_shader_string.c_str());
   }
 
 public:

@@ -9,8 +9,9 @@
 
 EllipsoidRenderer::EllipsoidRenderer() {
 
-  program = std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.vert",
-                                      PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.frag", "");
+  program =
+      std::make_unique<Program>(PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.vert",
+                                PROJECT_DIR "/src/gaussian/view/renderer/shader/ellipsoid.frag", "", "", "");
 
   glCreateTextures(GL_TEXTURE_2D, 1, &idTexture);
   glTextureParameteri(idTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
