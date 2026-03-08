@@ -104,16 +104,22 @@ bool MainWindow::Init(bool isMultiViewport) {
 
   // ImGui initialization
   {
+    // if the platform is wayland, disable multi-viewports (glfw for wayland is not yet supported)
+    const char *wayland_display = getenv("WAYLAND_DISPLAY");
+    const char *session_type = getenv("XDG_SESSION_TYPE");
+    bool is_wayland = (wayland_display != nullptr) || (session_type && strcmp(session_type, "wayland") == 0);
+    isMultiViewport = !is_wayland && isMultiViewport;
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    // NOLINTBEGIN(hicpp-signed-bitwise)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
     if (isMultiViewport)
       io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable MultiViewports
+    // NOLINTEND(hicpp-signed-bitwise)
 
     // Setup Dear ImGui style
     ImGui::StyleColorsLight();
@@ -171,6 +177,7 @@ void MainWindow::Run() {
     // NOLINTNEXTLINE(hicpp-signed-bitwise)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
 
       GLFWwindow *backup_current_context = glfwGetCurrentContext();
@@ -199,6 +206,7 @@ void MainWindow::Destroy() {
 
 void MainWindow::CreateImGuiComponents() {
 
+  // NOLINTNEXTLINE(hicpp-signed-bitwise)
   windowPos = ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable
                   ? ImVec2(ImGui::GetMainViewport()->Pos)
                   : ImVec2(0, 0);
