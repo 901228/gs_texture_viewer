@@ -47,7 +47,7 @@ void ModelPanel::_render() {
     glClearBufferfv(GL_COLOR, 0, background);
     glClearBufferfv(GL_DEPTH, 0, &one);
 
-    model->render(*camera, false, wire, _renderingMode == RenderingMode::TextureCoords,
+    model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
                   _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
                   _textureEditor->theta(), _textureEditor->selectedPBR(), _lightDir, _lightIntensity);
@@ -97,6 +97,7 @@ void ModelPanel::_controls() {
       ImGui::SeparatorText("Render Option");
       {
         ImGui::Checkbox("wire", &wire);
+        ImGui::Checkbox("render selected only", &_renderSelectedOnly);
         ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
                      Utils::enumToImGuiCombo<RenderingMode>().c_str());
       }
