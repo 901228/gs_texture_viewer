@@ -16,7 +16,6 @@ public:
 
   void render(const Camera &camera, const int &width, const int &height, const glm::vec3 &clearColor,
               float *image_cuda, TextureEditor &textureEditor,
-              CudaRasterizer::TextureOption::RenderingMode textureRenderingMode,
               CudaRasterizer::MaskCullingMode maskCullingMode, CudaRasterizer::Light light);
   void controls() override;
 
@@ -80,8 +79,6 @@ private:
 
   // output
   CudaRasterizer::PixelMask *_mask_cuda = nullptr;
-  CudaRasterizer::TextureOption::RenderingMode mode = CudaRasterizer::TextureOption::RenderingMode::Texture;
-
   CudaRasterizer::RenderingMode _renderingMode = CudaRasterizer::RenderingMode::Color;
 
 public:

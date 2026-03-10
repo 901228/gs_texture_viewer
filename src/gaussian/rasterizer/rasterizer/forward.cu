@@ -390,37 +390,38 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 
     // whether to override the GS color with the texture color
     bool overrideColor =
-        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
-        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling && hasMask);
+        hasMask &&
+        ((textureOption.cullingMode == CudaRasterizer::MaskCullingMode::DepthComparison && visible) ||
+         textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling ||
+         textureOption.cullingMode == CudaRasterizer::MaskCullingMode::None);
 
-    if (renderingMode == CudaRasterizer::RenderingMode::Color) {
-
+    if (renderingMode != CudaRasterizer::RenderingMode::Depth) {
       for (int ch = 0; ch < CHANNELS; ch++)
         out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
-
-      if (overrideColor) {
-
-        const CudaRasterizer::PixelMask &m = mask[pix_id];
-
-        if (textureOption.mode == CudaRasterizer::TextureOption::RenderingMode::TextureCoords) {
-          out_color[0 * H * W + pix_id] = m.texCoords.x;
-          out_color[1 * H * W + pix_id] = m.texCoords.y;
-          out_color[2 * H * W + pix_id] = 0.0f;
-        } else if (textureOption.mode == CudaRasterizer::TextureOption::RenderingMode::Texture) {
-          out_color[0 * H * W + pix_id] = m.color.x;
-          out_color[1 * H * W + pix_id] = m.color.y;
-          out_color[2 * H * W + pix_id] = m.color.z;
-        }
-      }
-    } else if (renderingMode == CudaRasterizer::RenderingMode::Depth) {
-
+    } else {
       for (int ch = 0; ch < CHANNELS; ch++)
         out_color[ch * H * W + pix_id] = (depthMax - pixelDepth) / (depthMax - DEPTH_MIN);
+    }
 
-      if (overrideColor) {
+    if (overrideColor) {
+      const CudaRasterizer::PixelMask &m = mask[pix_id];
+
+      if (renderingMode == CudaRasterizer::RenderingMode::Color) {
+        out_color[0 * H * W + pix_id] = m.color.x;
+        out_color[1 * H * W + pix_id] = m.color.y;
+        out_color[2 * H * W + pix_id] = m.color.z;
+      } else if (renderingMode == CudaRasterizer::RenderingMode::TextureCoords) {
+        out_color[0 * H * W + pix_id] = m.texCoords.x;
+        out_color[1 * H * W + pix_id] = m.texCoords.y;
+        out_color[2 * H * W + pix_id] = 0.0f;
+      } else if (renderingMode == CudaRasterizer::RenderingMode::Depth) {
         out_color[0 * H * W + pix_id] = 1.0f;
         out_color[1 * H * W + pix_id] = 0.0f;
         out_color[2 * H * W + pix_id] = 0.0f;
+      } else if (renderingMode == CudaRasterizer::RenderingMode::Normal) {
+        out_color[0 * H * W + pix_id] = m.normal.x;
+        out_color[1 * H * W + pix_id] = m.normal.y;
+        out_color[2 * H * W + pix_id] = m.normal.z;
       }
     }
   }

@@ -2,6 +2,7 @@
 #define MODEL_HPP
 #pragma once
 
+#include <algorithm>
 #include <memory>
 #include <unordered_set>
 #include <vector>
@@ -94,6 +95,13 @@ protected:
 
 public:
   [[nodiscard]] glm::vec3 center() const;
+
+protected:
+  int _tessLevel = 4;
+
+public:
+  [[nodiscard]] inline int tessLevel() const { return _tessLevel; }
+  inline void setTessLevel(int level) { _tessLevel = std::clamp(level, 1, GL_MAX_TESS_GEN_LEVEL); }
 };
 
 #endif // !MODEL_HPP

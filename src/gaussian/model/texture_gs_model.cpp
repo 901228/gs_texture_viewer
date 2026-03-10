@@ -132,13 +132,12 @@ void TextureGaussianModel::initMesh() {
   _normal.clear();
 
   for (const MyMesh::FaceHandle &fh : _mesh.faces()) {
-
     for (const MyMesh::VertexHandle &vh : _mesh.fv_range(fh)) {
+
       _vertices.emplace_back(Utils::toGlm(_mesh.point(vh)));
+      _normal.emplace_back(Utils::toGlm(_mesh.normal(vh)));
       _mesh.set_texcoord2D(vh, {0, 0});
     }
-
-    _normal.emplace_back(Utils::toGlm(_mesh.normal(fh)));
   }
 
   std::vector<glm::vec2> textureCoord = std::vector<glm::vec2>(n_vertices(), {0, 0});
@@ -170,7 +169,6 @@ void TextureGaussianModel::updateTexId(TextureEditor &textureEditor) {
 void TextureGaussianModel::render(const Camera &camera, const int &width, const int &height,
                                   const glm::vec3 &clearColor, float *image_cuda,
                                   TextureEditor &textureEditor,
-                                  CudaRasterizer::TextureOption::RenderingMode textureRenderingMode,
                                   CudaRasterizer::MaskCullingMode maskCullingMode,
                                   CudaRasterizer::Light light) {
 
@@ -199,13 +197,13 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   size_t faceCount = _selectedID->size();
   auto selectedTexture = textureEditor.selectedPBR();
   CudaRasterizer::TextureOption textureOption{textureEditor.scale(), Utils::toFloat2(textureEditor.offset()),
-                                              textureEditor.theta(), textureRenderingMode, maskCullingMode};
+                                              textureEditor.theta(), maskCullingMode};
   CUDA_SAFE_CALL(CudaRasterizer::makeMask(
       _model_position_cuda, _model_normal_cuda, _model_texCoords_cuda, _model_tangent_cuda,
       _model_bitangent_cuda, faceCount * 3, _model_basecolor_map_cuda, _model_normal_map_cuda,
       _model_height_map_cuda, textureOption,
-      selectedTexture != nullptr ? selectedTexture->heightScale() : 0.0f, light, faceCount, width, height,
-      _proj_view_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
+      selectedTexture != nullptr ? selectedTexture->heightScale() : 0.0f, light, faceCount, _tessLevel, width,
+      height, _proj_view_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
@@ -233,6 +231,8 @@ void TextureGaussianModel::controls() {
                Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
 
   ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.02f, "%.4f");
+
+  ImGui::SliderInt("Tess Level", &_tessLevel, 1, 1024);
 }
 
 bool TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {

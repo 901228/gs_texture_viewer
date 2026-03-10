@@ -50,8 +50,7 @@ void TextureGSPanel::_render() {
         *_textureGaussianModel, [this](float *image_cuda) {
           auto selectedTexture = _textureEditor->selectedTexture();
           _textureGaussianModel->render(*camera, static_cast<int>(_width), static_cast<int>(_height),
-                                        {1.0f, 1.0f, 1.0f}, image_cuda, *_textureEditor, _textureRenderMode,
-                                        _maskCullingMode,
+                                        {1.0f, 1.0f, 1.0f}, image_cuda, *_textureEditor, _maskCullingMode,
                                         {Utils::toFloat3(_lightDir), {1.0f, 1.0f, 1.0f}, _lightIntensity});
         });
 
@@ -141,8 +140,6 @@ void TextureGSPanel::_controls() {
 
     if (ImGui::BeginTabItem("textures")) {
 
-      ImGui::Combo("Selected Render Mode", reinterpret_cast<int *>(&_textureRenderMode),
-                   Utils::enumToImGuiCombo<CudaRasterizer::TextureOption::RenderingMode>().c_str());
       ImGui::Combo("Mask Culling Mode", reinterpret_cast<int *>(&_maskCullingMode),
                    Utils::enumToImGuiCombo<CudaRasterizer::MaskCullingMode>().c_str());
       ImGui::NewLine();

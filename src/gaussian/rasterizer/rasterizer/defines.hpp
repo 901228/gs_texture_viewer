@@ -8,18 +8,15 @@
 
 namespace CudaRasterizer {
 
-enum class RenderingMode : int { Color, Depth };
+enum class RenderingMode : int { Color, TextureCoords, Depth, Normal };
 
-enum class MaskCullingMode : int { DepthComparison, NormalCulling };
+enum class MaskCullingMode : int { None, DepthComparison, NormalCulling };
 
 struct TextureOption {
-
-  enum class RenderingMode : int { None, TextureCoords, Texture };
 
   float scale = 1;
   float2 offset = {};
   float theta = 0;
-  RenderingMode mode = RenderingMode::None;
   MaskCullingMode cullingMode = MaskCullingMode::DepthComparison;
 };
 
@@ -28,6 +25,7 @@ struct PixelMask {
   float3 color;     // sample color of each pixel
   float depth;      // depth of each pixel
   float2 texCoords; // texture coordinates of each pixel
+  float3 normal;    // normal of each pixel
 };
 
 struct Light {

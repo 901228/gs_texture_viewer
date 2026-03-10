@@ -78,7 +78,6 @@ bool Model::loadModel(const char *path) {
 
       _mesh.request_face_normals();
       _mesh.update_normals();
-      _mesh.release_face_normals();
     }
 
     initMesh();
@@ -97,12 +96,13 @@ void Model::initMesh() {
   _vertices.clear();
 
   std::vector<glm::vec3> normals;
-  for (const MyMesh::FaceHandle &i : _mesh.faces()) {
-    for (const MyMesh::VertexHandle &j : _mesh.fv_range(i)) {
-      glm::vec3 v = Utils::toGlm(_mesh.point(j));
+  for (const MyMesh::FaceHandle &fh : _mesh.faces()) {
+    for (const MyMesh::VertexHandle &vh : _mesh.fv_range(fh)) {
+
+      glm::vec3 v = Utils::toGlm(_mesh.point(vh));
       _vertices.emplace_back(v);
-      normals.emplace_back(Utils::toGlm(_mesh.normal(j)));
-      _mesh.set_texcoord2D(j, {0, 0});
+      normals.emplace_back(Utils::toGlm(_mesh.normal(vh)));
+      _mesh.set_texcoord2D(vh, {0, 0});
 
       _boxmin = glm::min(_boxmin, v);
       _boxmax = glm::max(_boxmax, v);
@@ -203,7 +203,7 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
   //   textureList[i]->setupUniforms(*_renderingProgram, i);
   // }
 
-  _renderingProgram->setFloat("tessLevel", GL_MAX_TESS_GEN_LEVEL);
+  _renderingProgram->setFloat("tessLevel", static_cast<float>(_tessLevel));
 }
 
 void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, bool isRenderTextureCoords,

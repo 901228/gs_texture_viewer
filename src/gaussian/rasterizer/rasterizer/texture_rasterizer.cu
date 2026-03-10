@@ -22,66 +22,137 @@ __device__ float4 CudaRasterizer::sampleTexture(cudaTextureObject_t texId, float
 
 namespace {
 
+__device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+__device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+
 struct VertexOut {
   rs::vec4 clipPos;
   rs::vec3 position;
   rs::vec3 normal;
   rs::vec3 tangent;
   rs::vec3 bitangent;
+  rs::vec2 uv;
 };
 
-__global__ void clipPosition(const rs::vec3 *__restrict__ position,               // per-vertex
-                             const rs::vec3 *__restrict__ normals,                // per-vertex
-                             const rs::vec2 *__restrict__ texCoords,              // per-vertex
-                             const rs::vec3 *__restrict__ tangent,                // per-vertex
-                             const rs::vec3 *__restrict__ bitangent,              // per-vertex
-                             const cudaTextureObject_t *__restrict__ heightTexId, // per-face
-                             CudaRasterizer::TextureOption textureOption, int num_vertices, float heightScale,
-                             const float *__restrict__ projviewmatrix, VertexOut *__restrict__ vertex_out) {
-  unsigned int vid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (vid >= num_vertices)
+__global__ void tessellate(const rs::vec3 *__restrict__ position,               // per-vertex
+                           const rs::vec3 *__restrict__ normals,                // per-vertex
+                           const rs::vec2 *__restrict__ texCoords,              // per-vertex
+                           const rs::vec3 *__restrict__ tangent,                // per-vertex
+                           const rs::vec3 *__restrict__ bitangent,              // per-vertex
+                           const cudaTextureObject_t *__restrict__ heightTexId, // per-face
+                           CudaRasterizer::TextureOption textureOption, int num_vertices,
+                           int num_coarse_triangles, float heightScale, int tessLevel,
+                           const float *__restrict__ projviewmatrix, VertexOut *__restrict__ vertex_out) {
+  // every triangle generates tessLevel² fine triangles
+  int tris_per_patch = tessLevel * tessLevel;
+  int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (global_tid >= num_coarse_triangles * tris_per_patch)
     return;
 
-  unsigned int fid = vid / 3;
+  int patch_id = global_tid / tris_per_patch;
+  int local_tid = global_tid % tris_per_patch;
 
-  rs::vec3 vertex = position[vid];
-  rs::vec2 texCoord = texCoords[vid];
+  // vertex of the coarse triangle
+  int i0 = patch_id * 3 + 0;
+  int i1 = patch_id * 3 + 1;
+  int i2 = patch_id * 3 + 2;
 
-  rs::vec3 N = rs::normalize(normals[vid]);
-  rs::vec3 T = rs::normalize(tangent[vid]);
-  T = rs::normalize(T - rs::dot(T, N) * N);
-  rs::vec3 B = rs::cross(N, T);
+  rs::vec3 pos0 = position[i0];
+  rs::vec3 pos1 = position[i1];
+  rs::vec3 pos2 = position[i2];
 
-  rs::vec3 displacedPos{vertex};
-  if (heightTexId != nullptr && heightTexId[fid] > 0) {
-    // float h = CudaRasterizer::sampleTexture(heightTexId[fid], static_cast<float2>(texCoord),
-    // textureOption).x; displacedPos += N * h * heightScale;
+  rs::vec3 norm0 = normals[i0];
+  rs::vec3 norm1 = normals[i1];
+  rs::vec3 norm2 = normals[i2];
 
-    float epsilon = 0.01f;
+  rs::vec2 uv0 = texCoords[i0];
+  rs::vec2 uv1 = texCoords[i1];
+  rs::vec2 uv2 = texCoords[i2];
 
-    // sample neighboring points
-    float h = CudaRasterizer::sampleTexture(heightTexId[fid], static_cast<float2>(texCoord), textureOption).x;
-    float hR = CudaRasterizer::sampleTexture(
-                   heightTexId[fid], static_cast<float2>(texCoord + rs::vec2(epsilon, 0.0f)), textureOption)
-                   .x;
-    float hU = CudaRasterizer::sampleTexture(
-                   heightTexId[fid], static_cast<float2>(texCoord + rs::vec2(0.0f, epsilon)), textureOption)
-                   .x;
+  rs::vec3 tang0 = tangent[i0];
+  rs::vec3 tang1 = tangent[i1];
+  rs::vec3 tang2 = tangent[i2];
 
-    // displace position
-    displacedPos += N * h * heightScale;
+  rs::vec3 bitang0 = bitangent[i0];
+  rs::vec3 bitang1 = bitangent[i1];
+  rs::vec3 bitang2 = bitangent[i2];
 
-    // use height difference to re-calculate normal
-    rs::vec3 dPdU = T + N * ((hR - h) / epsilon) * heightScale;
-    rs::vec3 dPdV = B + N * ((hU - h) / epsilon) * heightScale;
-    N = rs::normalize(rs::cross(dPdU, dPdV));
+  // local_tid -> center coordinate
+  // traverse tessLevel² sub-triangles
+  // use row-major ordering: row i has 2*(tessLevel-i)-1 triangles
+  // simple approach: find (row, col, upper/lower)
+  float inv = 1.0f / static_cast<float>(tessLevel);
+
+  // mapping local_tid to the coordinates of the three vertices
+  // find the row first
+  int row = 0, col = 0;
+  int count = 0;
+  bool found = false;
+  for (int r = 0; r < tessLevel && !found; r++) {
+    int tris_in_row = 2 * (tessLevel - r) - 1;
+    if (local_tid < count + tris_in_row) {
+      row = r;
+      col = local_tid - count;
+      found = true;
+    }
+    count += tris_in_row;
   }
 
-  vertex_out[vid].position = displacedPos;
-  vertex_out[vid].normal = N;
-  vertex_out[vid].tangent = T;
-  vertex_out[vid].bitangent = B;
-  vertex_out[vid].clipPos = rs::mat4(projviewmatrix) * rs::vec4(displacedPos, 1.0f);
+  // index in col: even = upward triangle, odd = downward triangle
+  bool upward = (col % 2 == 0);
+  int k = col / 2;
+
+  rs::vec3 b0, b1, b2; // center coordinate of three vertices
+  if (upward) {
+    // upward triangle
+    b0 = {(row + 0) * inv, (k + 0) * inv, 1.0f - (row + 0) * inv - (k + 0) * inv};
+    b1 = {(row + 1) * inv, (k + 0) * inv, 1.0f - (row + 1) * inv - (k + 0) * inv};
+    b2 = {(row + 0) * inv, (k + 1) * inv, 1.0f - (row + 0) * inv - (k + 1) * inv};
+  } else {
+    // downward triangle
+    b0 = {(row + 1) * inv, (k + 0) * inv, 1.0f - (row + 1) * inv - (k + 0) * inv};
+    b1 = {(row + 1) * inv, (k + 1) * inv, 1.0f - (row + 1) * inv - (k + 1) * inv};
+    b2 = {(row + 0) * inv, (k + 1) * inv, 1.0f - (row + 0) * inv - (k + 1) * inv};
+  }
+
+  // output fine vertex index
+  int out_base = global_tid * 3;
+
+  // interpolate attributes
+  rs::vec3 bary_list[3] = {b0, b1, b2};
+  for (int v = 0; v < 3; v++) {
+    rs::vec3 bary = bary_list[v];
+
+    // barycentric interpolation
+    rs::vec3 pos = barycentric(bary, pos0, pos1, pos2);
+    rs::vec3 norm = rs::normalize(barycentric(bary, norm0, norm1, norm2));
+    rs::vec3 tang = rs::normalize(barycentric(bary, tang0, tang1, tang2));
+    rs::vec3 bitang = rs::normalize(barycentric(bary, bitang0, bitang1, bitang2));
+    rs::vec2 uv = barycentric(bary, uv0, uv1, uv2);
+
+    // Height map displacement
+    if (heightTexId != nullptr && heightTexId[patch_id] > 0) {
+      float h =
+          CudaRasterizer::sampleTexture(heightTexId[patch_id], static_cast<float2>(uv), textureOption).x;
+
+      pos += norm * h * heightScale;
+    }
+
+    // clipPos
+    rs::vec4 clipPos = rs::mat4(projviewmatrix) * rs::vec4(pos, 1.0f);
+
+    VertexOut &out = vertex_out[out_base + v];
+    out.clipPos = clipPos;
+    out.position = pos;
+    out.normal = norm;
+    out.tangent = tang;
+    out.bitangent = bitang;
+    out.uv = uv;
+  }
 }
 
 /**
@@ -101,13 +172,6 @@ __device__ uint32_t float_to_uint_depth(float f) {
   memcpy(&u, &f, sizeof(u));
   // positive floats IEEE754 bit pattern can be compared directly
   return u;
-}
-
-__device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
-  return bary.x * p0 + bary.y * p1 + bary.z * p2;
-}
-__device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
-  return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
 
 __host__ __device__ inline rs::vec3 reflect(const rs::vec3 &I, const rs::vec3 &N) {
@@ -135,11 +199,10 @@ __device__ rs::vec3 calcDirLight(CudaRasterizer::Light light, const rs::vec3 &no
 }
 
 // for each triangle
-__global__ void render(const rs::vec2 *__restrict__ texCoords,                 // per-vertex
-                       const VertexOut *__restrict__ fs_in,                    // per-vertex
+__global__ void render(const VertexOut *__restrict__ fs_in,                    // per-vertex
                        const cudaTextureObject_t *__restrict__ basecolorTexId, // per-face
                        const cudaTextureObject_t *__restrict__ normalTexId,    // per-face
-                       int num_triangles, CudaRasterizer::TextureOption textureOption,
+                       int num_triangles, int tessLevel, CudaRasterizer::TextureOption textureOption,
                        CudaRasterizer::Light lightDirection, const float *__restrict__ viewpos, int width,
                        int height,
                        uint32_t *__restrict__ depth_buffer, // temp uint depth buffer for atomicMin
@@ -158,11 +221,6 @@ __global__ void render(const rs::vec2 *__restrict__ texCoords,                 /
   VertexOut v0 = fs_in[i0];
   VertexOut v1 = fs_in[i1];
   VertexOut v2 = fs_in[i2];
-
-  // get texture coordinates
-  rs::vec2 uv0 = texCoords[i0];
-  rs::vec2 uv1 = texCoords[i1];
-  rs::vec2 uv2 = texCoords[i2];
 
   // Perspective divide → NDC
   // (screenX, screenY, depth)
@@ -234,6 +292,23 @@ __global__ void render(const rs::vec2 *__restrict__ texCoords,                 /
         rs::vec3 worldPos = barycentric(bary, v0.position, v1.position, v2.position);
         rs::vec3 viewDir = rs::normalize(rs::vec3(viewpos) - worldPos);
 
+        float2 uv = static_cast<float2>(barycentric(bary, v0.uv, v1.uv, v2.uv));
+        if (normalTexId != nullptr && normalTexId[prim_id / (tessLevel * tessLevel)] > 0) {
+
+          // TBN matrix (all in world/view space)
+          rs::vec3 T = rs::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
+          // Gram-Schmidt, make sure T is orthogonal to new N
+          T = rs::normalize(T - rs::dot(T, N) * N);
+          rs::vec3 B = rs::cross(N, T);
+          rs::mat3 TBN = rs::mat3(T, B, N);
+
+          // normal map
+          float4 mapN = CudaRasterizer::sampleTexture(normalTexId[prim_id / (tessLevel * tessLevel)], uv,
+                                                      textureOption);
+          rs::vec3 mapN_ = rs::vec3(mapN.x, mapN.y, mapN.z) * 2.0 - 1.0;
+          N = normalize(TBN * mapN_);
+        }
+
         if (maskCullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) {
           // back face culling
           if (rs::dot(N, viewDir) <= 0.0f) {
@@ -243,41 +318,21 @@ __global__ void render(const rs::vec2 *__restrict__ texCoords,                 /
         }
 
         m.mask = 1;
-
-        float2 uv = static_cast<float2>(barycentric(bary, uv0, uv1, uv2));
         m.texCoords = uv;
-
-        if (basecolorTexId != nullptr && basecolorTexId[prim_id] > 0) {
-          float4 c = CudaRasterizer::sampleTexture(basecolorTexId[prim_id], uv, textureOption);
-
-          if (normalTexId == nullptr || normalTexId[prim_id] <= 0) {
-            m.color.x = c.x;
-            m.color.y = c.y;
-            m.color.z = c.z;
-          } else {
-
-            // TBN matrix (all in world/view space)
-            rs::vec3 T = rs::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
-            // Gram-Schmidt, make sure T is orthogonal to new N
-            T = rs::normalize(T - rs::dot(T, N) * N);
-            rs::vec3 B = rs::cross(N, T);
-            rs::mat3 TBN = rs::mat3(T, B, N);
-
-            // normal map
-            float4 mapN = CudaRasterizer::sampleTexture(normalTexId[prim_id], uv, textureOption);
-            rs::vec3 mapN_ = rs::vec3(mapN.x, mapN.y, mapN.z) * 2.0 - 1.0;
-            rs::vec3 norm = normalize(TBN * mapN_);
-
-            // lighting
-            rs::vec3 lightingResult = calcDirLight(lightDirection, norm, viewDir) * rs::vec3(c.x, c.y, c.z);
-
-            m.color.x = lightingResult.x;
-            m.color.y = lightingResult.y;
-            m.color.z = lightingResult.z;
-          }
-        }
-
         m.depth = bary.x * v0.clipPos.w + bary.y * v1.clipPos.w + bary.z * v2.clipPos.w;
+        m.normal = static_cast<float3>(N);
+
+        if (basecolorTexId != nullptr && basecolorTexId[prim_id / (tessLevel * tessLevel)] > 0) {
+          float4 c = CudaRasterizer::sampleTexture(basecolorTexId[prim_id / (tessLevel * tessLevel)], uv,
+                                                   textureOption);
+
+          // lighting
+          rs::vec3 lightingResult = calcDirLight(lightDirection, N, viewDir) * rs::vec3(c.x, c.y, c.z);
+
+          m.color.x = lightingResult.x;
+          m.color.y = lightingResult.y;
+          m.color.z = lightingResult.z;
+        }
       }
     }
   }
@@ -290,37 +345,39 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
                               const cudaTextureObject_t *basecolorTexId,
                               const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
                               TextureOption textureOption, float heightScale, Light lightDirection,
-                              int num_triangles, int width, int height, const float *projviewmatrix,
-                              const float *viewpos, MaskCullingMode maskCullingMode, PixelMask *mask) {
+                              int num_triangles, int tessLevel, int width, int height,
+                              const float *projviewmatrix, const float *viewpos,
+                              MaskCullingMode maskCullingMode, PixelMask *mask) {
 
   if (position == nullptr || texCoords == nullptr || basecolorTexId == nullptr || normalTexId == nullptr ||
       heightTexId == nullptr)
     return;
+
+  int num_fine_triangles = num_triangles * tessLevel * tessLevel;
+  int num_fine_vertices = num_fine_triangles * 3;
 
   VertexOut *vertex_out;
   uint32_t *d_depth;
 
   size_t pixels = (size_t)width * height;
 
-  cudaMalloc(&vertex_out, num_vertices * sizeof(VertexOut));
+  cudaMalloc(&vertex_out, num_fine_vertices * sizeof(VertexOut));
   cudaMalloc(&d_depth, pixels * sizeof(uint32_t));
 
   // initialize depth buffer to max value
   cudaMemset(d_depth, static_cast<int>(0xFFFFFFFF), pixels * sizeof(uint32_t));
-
   // clear output buffers
   cudaMemset(mask, 0, width * height * sizeof(PixelMask));
 
-  // ── Vertex Shader ──
-  clipPosition<<<(num_vertices + 255) / 256, 256>>>((rs::vec3 *)position, (rs::vec3 *)normal,
-                                                    (rs::vec2 *)texCoords, (rs::vec3 *)tangents,
-                                                    (rs::vec3 *)bitangents, heightTexId, textureOption,
-                                                    num_vertices, heightScale, projviewmatrix, vertex_out);
+  tessellate<<<(num_fine_triangles + 255) / 256, 256>>>(
+      (rs::vec3 *)position, (rs::vec3 *)normal, (rs::vec2 *)texCoords, (rs::vec3 *)tangents,
+      (rs::vec3 *)bitangents, heightTexId, textureOption, num_vertices, num_triangles, heightScale, tessLevel,
+      projviewmatrix, vertex_out);
 
   // ── Rasterize + Fragment Shader ──
-  render<<<(num_triangles + 255) / 256, 256>>>((rs::vec2 *)texCoords, vertex_out, basecolorTexId, normalTexId,
-                                               num_triangles, textureOption, lightDirection, viewpos, width,
-                                               height, d_depth, maskCullingMode, mask);
+  render<<<(num_fine_triangles + 255) / 256, 256>>>(
+      vertex_out, basecolorTexId, normalTexId, num_fine_triangles, tessLevel, textureOption, lightDirection,
+      viewpos, width, height, d_depth, maskCullingMode, mask);
 
   cudaFree(vertex_out);
   cudaFree(d_depth);
