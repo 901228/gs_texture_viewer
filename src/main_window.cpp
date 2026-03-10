@@ -163,6 +163,8 @@ void MainWindow::Run() {
 
     glfwPollEvents();
 
+    _frameRate = ImGui::GetIO().Framerate;
+
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -235,6 +237,29 @@ void MainWindow::CreateMenuBar() {
   }
 }
 
+void MainWindow::CreateMetricsPanel(ImVec2 pos, ImVec2 size, float padding) {
+
+  ImVec2 _padding = {padding, padding};
+
+  // ImVec2 originalPos = ImGui::GetCursorScreenPos();
+  {
+    ImGui::SetCursorScreenPos(pos);
+    if (ImGui::BeginChild("metrics", size)) {
+
+      ImGui::GetWindowDrawList()->AddRectFilled(pos, pos + size, 0xAAAAAAAA);
+
+      ImGui::SetCursorScreenPos(pos + _padding);
+      if (ImGui::BeginChild("metrics content", size - _padding * 2)) {
+
+        ImGui::Text("FPS: %.1f", _frameRate);
+      }
+      ImGui::EndChild();
+    }
+    ImGui::EndChild();
+  }
+  // ImGui::SetCursorScreenPos(originalPos);
+}
+
 void MainWindow::CreateMainView() {
 
   if (ImGui::Begin("main view", nullptr, flag)) {
@@ -248,10 +273,15 @@ void MainWindow::CreateMainView() {
         if (ImGui::BeginTabItem(panels[i]->name().c_str())) {
 
           currentPanel = i;
+          static const ImVec2 metricsWindowSize = {128, 128};
+          ImVec2 pos = ImGui::GetCursorScreenPos();
+          pos.x += ImGui::GetContentRegionAvail().x - metricsWindowSize.x;
 
           const ImVec2 _size = ImGui::GetContentRegionAvail();
           panels[i]->onResize(_size.x, _size.y);
           panels[i]->render();
+
+          CreateMetricsPanel(pos, metricsWindowSize);
 
           ImGui::EndTabItem();
         }

@@ -40,6 +40,8 @@ private:
   void CreateControlPanel();
   void CreateSettingPage();
 
+  void CreateMetricsPanel(ImVec2 pos, ImVec2 size = {128, 128}, float padding = 8);
+
 private:
   // constants
   const float windowWidth = 1000;
@@ -71,6 +73,10 @@ private:
 private:
   std::vector<std::unique_ptr<PagePanel>> panels;
   int currentPanel = 0;
+
+private:
+  // status
+  float _frameRate = 0;
 };
 
 #endif // !MAIN_WINDOW_HPP
