@@ -101,7 +101,7 @@ private:
   glm::vec2 _mousePosAnchor{};
 
   // rotate
-  float _theta = 0;
+  float _theta = 0; // in degrees
 
   enum TextureEditingMode : int { None, Rotate, Scale, Move };
   TextureEditingMode _mode = TextureEditingMode::None;
@@ -109,7 +109,9 @@ private:
 public:
   [[nodiscard]] inline float scale() const { return _scale; }
   [[nodiscard]] inline glm::vec2 offset() const { return _offset; }
-  [[nodiscard]] inline float theta() const { return _theta; }
+  [[nodiscard]] inline float theta(bool inDegrees = false) const {
+    return inDegrees ? _theta : glm::radians(_theta);
+  }
 };
 
 #endif // !TEXTURE_EDITOR_HPP

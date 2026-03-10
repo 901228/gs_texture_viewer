@@ -6,6 +6,9 @@
 
 namespace ImGui {
 
+/**
+ * @param angle in degrees
+ */
 IMGUI_API bool ToolLineAngle(const char *label, float *angle, ImVec2 origin, bool *isConfirm,
                              float segmentLength = 4, float lineWidth = 2,
                              ImColor lineColor = {0, 0, 0, 255});

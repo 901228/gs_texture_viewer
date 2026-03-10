@@ -197,7 +197,7 @@ void Model::setupUniforms(const Camera &camera, bool isWire, bool isRenderTextur
   _renderingProgram->setInt("isRenderTexture", isRenderTexture);
   _renderingProgram->setFloat("textureRadius", textureRadius);
   _renderingProgram->setVec2("textureOffset", glm::value_ptr(textureOffset));
-  _renderingProgram->setFloat("textureTheta", glm::radians(textureTheta));
+  _renderingProgram->setFloat("textureTheta", textureTheta);
 
   // for (int i = 0; i < textureList.size(); i++) {
   //   textureList[i]->setupUniforms(*_renderingProgram, i);
