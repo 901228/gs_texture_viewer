@@ -63,17 +63,8 @@ void main() {
   if ((isRenderTexture && !isEditTexture && sl_min >= 0) ||
       (isRenderSelect && isEditTexture)) {
     float h = getEditingTextureColor(heightMap, uv).r;
+
     pos += norm * h * heightScale;
-
-    // re-calculate normal from displaced surface
-    const float epsilon = 0.01;
-    float hR = getEditingTextureColor(heightMap, uv + vec2(epsilon, 0.0f)).r;
-    float hU = getEditingTextureColor(heightMap, uv + vec2(0.0f, epsilon)).r;
-
-    // use local-space tang/bitang/norm to build displaced tangent vectors
-    vec3 dPdU = tang + norm * ((hR - h) / epsilon) * heightScale;
-    vec3 dPdV = bitang + norm * ((hU - h) / epsilon) * heightScale;
-    norm = normalize(cross(dPdU, dPdV));
   }
 
   // transform to world/view space after displacement
