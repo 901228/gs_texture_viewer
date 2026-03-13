@@ -18,6 +18,7 @@
 #include "panel/page_panel/gaussian_panel.hpp"
 #include "panel/page_panel/model_panel.hpp"
 #include "panel/page_panel/texture_gs_panel.hpp"
+#include "utils/imgui/icon.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/logger.hpp"
 #include "utils/utils.hpp"

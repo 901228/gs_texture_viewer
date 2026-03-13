@@ -230,6 +230,10 @@ void TextureGaussianModel::controls() {
 
   GaussianModel::controls();
 
+  ImGui::NewLine();
+  ImGui::Separator();
+  ImGui::NewLine();
+
   ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
                Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
 

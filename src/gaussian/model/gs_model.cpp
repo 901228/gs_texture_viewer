@@ -195,24 +195,18 @@ void GaussianModel::render(const Camera &camera, const int &width, const int &he
 
 void GaussianModel::controls() {
 
-  if (ImGui::CollapsingHeader("Splat Render Option")) {
-    ImGui::Indent();
+  ImGui::Checkbox("Fast Culling", &_fastCulling);
+  ImGui::Checkbox("Antialiasing", &_antialiasing);
+  ImGui::SliderFloat("Scaling Modifier", &_scalingModifier, 0.001f, 1.0f);
 
-    ImGui::Checkbox("Fast Culling", &_fastCulling);
-    ImGui::Checkbox("Antialiasing", &_antialiasing);
-    ImGui::SliderFloat("Scaling Modifier", &_scalingModifier, 0.001f, 1.0f);
-
-    ImGui::Checkbox("Crop Box", &_cropping);
-    if (_cropping) {
-      ImGui::SliderFloat("Box Min X", &_boxmin.x, _scenemin.x, _scenemax.x);
-      ImGui::SliderFloat("Box Min Y", &_boxmin.y, _scenemin.y, _scenemax.y);
-      ImGui::SliderFloat("Box Min Z", &_boxmin.z, _scenemin.z, _scenemax.z);
-      ImGui::SliderFloat("Box Max X", &_boxmax.x, _scenemin.x, _scenemax.x);
-      ImGui::SliderFloat("Box Max Y", &_boxmax.y, _scenemin.y, _scenemax.y);
-      ImGui::SliderFloat("Box Max Z", &_boxmax.z, _scenemin.z, _scenemax.z);
-    }
-
-    ImGui::Unindent();
+  ImGui::Checkbox("Crop Box", &_cropping);
+  if (_cropping) {
+    ImGui::SliderFloat("Box Min X", &_boxmin.x, _scenemin.x, _scenemax.x);
+    ImGui::SliderFloat("Box Min Y", &_boxmin.y, _scenemin.y, _scenemax.y);
+    ImGui::SliderFloat("Box Min Z", &_boxmin.z, _scenemin.z, _scenemax.z);
+    ImGui::SliderFloat("Box Max X", &_boxmax.x, _scenemin.x, _scenemax.x);
+    ImGui::SliderFloat("Box Max Y", &_boxmax.y, _scenemin.y, _scenemax.y);
+    ImGui::SliderFloat("Box Max Z", &_boxmax.z, _scenemin.z, _scenemax.z);
   }
 }
 

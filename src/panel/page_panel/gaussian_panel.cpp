@@ -59,7 +59,11 @@ void GaussianPanel::_controls() {
 
       if (currMode == GaussianView::RenderingMode::Splats) {
 
-        _gsModel->controls();
+        if (ImGui::CollapsingHeader("Splat Render Option")) {
+          ImGui::Indent();
+          _gsModel->controls();
+          ImGui::Unindent();
+        }
       }
 
       ImGui::EndSideBarItem();

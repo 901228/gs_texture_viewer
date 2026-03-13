@@ -1,12 +1,14 @@
 #include "sidebar.hpp"
 
+#include <format>
 #include <stack>
-#include <stdexcept>
 #include <unordered_map>
 
 #include <ImGui/imgui_internal.h>
 
-#include "utils/utils.hpp"
+#include <IconsFont/IconsLucide.h>
+
+#include "utils/imgui/icon.hpp"
 
 namespace ImGui {
 
@@ -24,6 +26,8 @@ namespace {
 
 struct SideBarStatus {
   int index = 0;
+  bool iconCollapsed = true;
+  float iconNameWidth = 0;
   ImRect sideBarRect{};
   ImRect contentRect{};
   std::unordered_map<ImGuiID, int> itemIndexStack{};
@@ -39,9 +43,10 @@ struct SideBarStatus {
   /**
    * @param bb is the bounding box of the icon in global space
    */
-  static bool drawSidebarIcon(const char *id, int index, bool selected, const char *icon, std::string tooltip,
-                              ImVec2 pos) {
+  bool drawSidebarIcon(const char *id, int pos_idx, bool selected, const char *icon, std::string tooltip) {
+
     ImGuiID uid = ImGui::GetID(id);
+    ImVec2 pos = getSideBarDrawPos(pos_idx);
     ImRect bb{pos + ImGui::iconMargin, pos + ImGui::iconFullSize - ImGui::iconMargin};
 
     // register item (so ImGui knows that this item exists)
@@ -56,19 +61,23 @@ struct SideBarStatus {
 
     // draw background
     ImDrawList *drawList = ImGui::GetWindowDrawList();
-    ImU32 bgColor;
-    if (hovered) {
-      bgColor = ImGui::GetColorU32(ImGuiCol_HeaderHovered);
-    } else if (selected) {
-      bgColor = ImGui::GetColorU32(ImGuiCol_Header);
-    } else {
-      bgColor = 0x00FFFFFF; // transparent
-    }
+    const ImU32 bgColor = (held && hovered) ? ImGui::GetColorU32(ImGuiCol_ButtonActive)
+                          : hovered         ? ImGui::GetColorU32(ImGuiCol_HeaderHovered)
+                          : selected        ? ImGui::GetColorU32(ImGuiCol_Header)
+                                            : 0x00FFFFFF;
 
     drawList->AddRectFilled(bb.Min, bb.Max, bgColor, 4.0f);
 
     // draw icon
-    ImGui::CenterText(icon, true, bb.Min, bb.Max, true);
+    ImGui::CenterIconText(icon, bb.Min, bb.Max, true);
+    if (!iconCollapsed) {
+
+      ImVec2 textSize = ImGui::CalcTextSize(id, 0, true);
+      iconNameWidth = std::max(iconNameWidth, textSize.x);
+      printf("%f\n", iconNameWidth);
+      ImGui::RenderText({pos.x + ImGui::iconFullSize.x, pos.y + (ImGui::iconFullSize.y - textSize.y) * 0.5f},
+                        id);
+    }
 
     // tooltip
     if (!tooltip.empty() && hovered && ImGui::BeginTooltip()) {
@@ -106,21 +115,26 @@ bool BeginSideBar(const char *str_id, const ImVec2 &size) {
   const ImVec2 separatorSize = {separatorWidth + separatorPadding.x * 2, childSize.y};
   const ImVec2 mainPadding = GetStyle().WindowPadding;
 
-  SideBarStatus status;
-  try {
-    status = SideBarStatusMap.at(itemID);
-  } catch (std::out_of_range) {
-  }
+  SideBarStatus &status = SideBarStatusMap[itemID];
 
   status.sideBarRect = {startPos, startPos + sideBarSize};
   status.contentRect = {
       {startPos.x + sideBarSize.x + separatorSize.x + mainPadding.x, startPos.y + mainPadding.y},
       startPos + childSize - mainPadding};
-  SideBarStatusMap.insert_or_assign(itemID, status);
+  if (!status.iconCollapsed) {
+    status.contentRect.Min.x += status.iconNameWidth;
+  }
+
+  // icon collapse button
+  if (status.drawSidebarIcon(std::format("##{}{}", str_id, "icon collapse button").c_str(), 0, false,
+                             status.iconCollapsed ? ICON_LC_PANEL_LEFT_OPEN : ICON_LC_PANEL_LEFT_CLOSE, "")) {
+    status.iconCollapsed = !status.iconCollapsed;
+  }
 
   // separator
-  GetWindowDrawList()->AddLine(separatorStart,
-                               {separatorStart.x, separatorStart.y + separatorSize.y - separatorPadding.y},
+  float separatorStartX = status.iconCollapsed ? separatorStart.x : separatorStart.x + status.iconNameWidth;
+  GetWindowDrawList()->AddLine({separatorStartX, separatorStart.y},
+                               {separatorStartX, separatorStart.y + separatorSize.y - separatorPadding.y},
                                0xFF000000, separatorWidth);
 
   return beginFlag;
@@ -144,36 +158,26 @@ bool BeginSideBarItem(const char *str_id, const char *icon) {
   }
 
   const ImGuiID sideBarID = SideBarIDStack.top();
-  SideBarStatus status;
-  try {
-    status = SideBarStatusMap.at(sideBarID);
-  } catch (std::out_of_range) {
+  auto it = SideBarStatusMap.find(sideBarID);
+  if (it == SideBarStatusMap.end())
     return false;
-  }
+
+  SideBarStatus &status = it->second;
 
   const ImGuiID itemID = GetID(str_id);
-  int idx;
-  try {
-    idx = status.itemIndexStack.at(itemID);
-  } catch (std::out_of_range) {
-    idx = status.itemIndexStack.size();
-    status.itemIndexStack.insert_or_assign(itemID, idx);
-    SideBarStatusMap.insert_or_assign(sideBarID, status);
+  if (!status.itemIndexStack.contains(itemID)) {
+    status.itemIndexStack[itemID] = status.itemIndexStack.size();
   }
+  int idx = status.itemIndexStack[itemID];
 
   const bool selected = idx == status.index;
 
   // draw icon
   // FIXME: if icon count is large, its total height is larger than available height
-  {
-    if (SideBarStatus::drawSidebarIcon(std::format("{}{}", str_id, "icon").c_str(), idx, selected, icon,
-                                       str_id, status.getSideBarDrawPos(idx))) {
-      status.index = idx;
-      SideBarStatusMap.insert_or_assign(sideBarID, status);
-    }
+  if (status.drawSidebarIcon(std::format("{}{}", str_id, "##icon").c_str(), idx + 1, selected, icon,
+                             str_id)) {
+    status.index = idx;
   }
-
-  // TODO: draw sidebar (icon + name)
 
   // draw content
   if (!selected) {
@@ -183,6 +187,9 @@ bool BeginSideBarItem(const char *str_id, const char *icon) {
   SetCursorScreenPos(status.contentRect.Min);
   bool beginFlag = selected && BeginChild(str_id, status.contentRect.GetSize());
   if (!beginFlag) {
+    if (selected) {
+      EndChild();
+    }
     return false;
   }
   return beginFlag;
