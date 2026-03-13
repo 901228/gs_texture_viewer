@@ -281,36 +281,55 @@ void MainWindow::CreateMetricsPanel(ImVec2 rightTopPos) {
 
   // ImVec2 originalPos = ImGui::GetCursorScreenPos();
   {
-    const float fontSize = ImGui::GetFontSize();
-    const float padding = 8.0f;
+    ImVec2 panelSize{};
+    const ImVec2 framePadding = ImGui::GetStyle().FramePadding;
+    if (_metricsCollapsed) {
+      ImGui::PushIconFont();
+      panelSize = ImGui::GetButtonSize(ICON_LC_INFO);
+      ImGui::PopIconFont();
+    } else {
+      ImGui::PushIconFont();
+      ImVec2 iconButtonSize = ImGui::GetButtonSize(ICON_LC_PANEL_RIGHT_CLOSE);
+      ImGui::PopIconFont();
 
-    ImVec2 iconPos{rightTopPos.x - fontSize - padding * 2, rightTopPos.y};
-    ImGui::SetCursorScreenPos(iconPos);
-    if (ImGui::BeginChild("metrics", {fontSize + padding * 2, fontSize + padding * 2})) {
+      panelSize.x += iconButtonSize.x + _metricsContentSize.x + framePadding.x * 2;
+      panelSize.y = std::max(iconButtonSize.y, _metricsContentSize.y + framePadding.y * 2);
+    }
 
-      ImGui::CenterText(ICON_LC_INFO, true);
+    auto metricsContent = [this]() { ImGui::Text("FPS: %.1f", _frameRate); };
 
-      if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
+    ImGui::SetCursorScreenPos({rightTopPos.x - panelSize.x, rightTopPos.y});
+    if (ImGui::BeginChild("metrics", panelSize)) {
 
-        ImGui::Text("FPS: %.1f", _frameRate);
+      ImGui::PushIconFont();
+      if (ImGui::Button(_metricsCollapsed ? ICON_LC_INFO : ICON_LC_PANEL_RIGHT_CLOSE)) {
+        _metricsCollapsed = !_metricsCollapsed;
+      }
+      ImGui::PopIconFont();
+
+      if (_metricsCollapsed && ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
+
+        metricsContent();
 
         ImGui::EndTooltip();
+      } else if (!_metricsCollapsed) {
+
+        ImGui::SetCursorScreenPos(
+            {rightTopPos.x - _metricsContentSize.x - framePadding.x, rightTopPos.y + framePadding.y});
+        if (ImGui::BeginChild("metrics inner", _metricsContentSize)) {
+
+          ImGui::BeginGroup();
+          metricsContent();
+          ImGui::EndGroup();
+
+          _metricsContentSize = ImGui::GetItemRectSize();
+
+          ImGui::EndChild();
+        }
       }
 
       ImGui::EndChild();
     }
-
-    // TODO: collapsable
-    // ImGui::SetCursorScreenPos(pos);
-    // ImGui::PushStyleColor(ImGuiCol_ChildBg, 0xAAAAAAAA);
-    // if (ImGui::BeginChild("metrics", size)) {
-    //   ImGui::SetCursorPos(_padding);
-
-    //   ImGui::Text("FPS: %.1f", _frameRate);
-
-    //   ImGui::EndChild();
-    // }
-    // ImGui::PopStyleColor();
   }
   // ImGui::SetCursorScreenPos(originalPos);
 }

@@ -76,6 +76,8 @@ private:
 
 private:
   // status
+  bool _metricsCollapsed = true;
+  ImVec2 _metricsContentSize{};
   float _frameRate = 0;
 };
 
