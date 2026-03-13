@@ -56,7 +56,7 @@ private:
   void updateTexcoordVAO() override;
 
 private:
-  float _threshold = 0.002f;
+  float _threshold = 0.014f;
 
 private:
   // for CUDA
@@ -67,7 +67,8 @@ private:
   // screen mask
 
   // input
-  float *_proj_view_cuda = nullptr;
+  float *_view_cuda = nullptr;
+  float *_proj_cuda = nullptr;
   float *_model_position_cuda = nullptr;
   float *_model_normal_cuda = nullptr;
   float *_model_texCoords_cuda = nullptr;

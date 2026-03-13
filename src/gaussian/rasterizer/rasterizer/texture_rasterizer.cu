@@ -22,10 +22,13 @@ __device__ float4 CudaRasterizer::sampleTexture(cudaTextureObject_t texId, float
 
 namespace {
 
-__device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
+__host__ __device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
   return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
-__device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
+__host__ __device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+__host__ __device__ float barycentric(rs::vec3 bary, float p0, float p1, float p2) {
   return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
 
@@ -36,6 +39,7 @@ struct VertexOut {
   rs::vec3 tangent;
   rs::vec3 bitangent;
   rs::vec2 uv;
+  float depth;
 };
 
 __global__ void tessellate(const rs::vec3 *__restrict__ position,               // per-vertex
@@ -46,7 +50,8 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
                            const cudaTextureObject_t *__restrict__ heightTexId, // per-face
                            CudaRasterizer::TextureOption textureOption, int num_vertices,
                            int num_coarse_triangles, float heightScale, int tessLevel,
-                           const float *__restrict__ projviewmatrix, VertexOut *__restrict__ vertex_out) {
+                           const float *__restrict__ viewmatrix, const float *__restrict__ projmatrix,
+                           VertexOut *__restrict__ vertex_out) {
   // every triangle generates tessLevel² fine triangles
   int tris_per_patch = tessLevel * tessLevel;
   int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -135,15 +140,16 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
     rs::vec2 uv = barycentric(bary, uv0, uv1, uv2);
 
     // Height map displacement
-    if (heightTexId != nullptr && heightTexId[patch_id] > 0) {
+    if (heightTexId[patch_id / 3] > 0) {
       float h =
-          CudaRasterizer::sampleTexture(heightTexId[patch_id], static_cast<float2>(uv), textureOption).x;
+          CudaRasterizer::sampleTexture(heightTexId[patch_id / 3], static_cast<float2>(uv), textureOption).x;
 
       pos += norm * h * heightScale;
     }
 
     // clipPos
-    rs::vec4 clipPos = rs::mat4(projviewmatrix) * rs::vec4(pos, 1.0f);
+    rs::vec3 p_view = rs::vec3(rs::mat4(viewmatrix) * rs::vec4(pos, 1.0f));
+    rs::vec4 clipPos = rs::mat4(projmatrix) * rs::vec4(p_view, 1.0f);
 
     VertexOut &out = vertex_out[out_base + v];
     out.clipPos = clipPos;
@@ -152,6 +158,7 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
     out.tangent = tang;
     out.bitangent = bitang;
     out.uv = uv;
+    out.depth = -p_view.z;
   }
 }
 
@@ -251,6 +258,13 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
   if (area == 0.0f) // 2 vertices are on the same line
     return;         // degenerate triangle
 
+  if (maskCullingMode & CudaRasterizer::MaskCullingMode::NormalCulling) {
+    // back face culling
+    if (area <= 0.0f) {
+      return;
+    }
+  }
+
   // iterate over all pixels in the bounding box (triangle)
   for (int py = minY; py <= maxY; py++) {
     for (int px = minX; px <= maxX; px++) {
@@ -274,7 +288,7 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
       rs::vec3 bary = {w0 / area, w1 / area, w2 / area};
 
       // interpolate depth from barycentric coordinates
-      float depth = bary.x * ndc0.z + bary.y * ndc1.z + bary.z * ndc2.z;
+      float depth = barycentric(bary, ndc0.z, ndc1.z, ndc2.z);
 
       // depth test: atomicMin ensures the nearest primitive wins
       uint32_t depth_uint = float_to_uint_depth(depth);
@@ -293,7 +307,7 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
         rs::vec3 viewDir = rs::normalize(rs::vec3(viewpos) - worldPos);
 
         float2 uv = static_cast<float2>(barycentric(bary, v0.uv, v1.uv, v2.uv));
-        if (normalTexId != nullptr && normalTexId[prim_id / (tessLevel * tessLevel)] > 0) {
+        if (normalTexId[prim_id / (tessLevel * tessLevel)] > 0) {
 
           // TBN matrix (all in world/view space)
           rs::vec3 T = rs::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
@@ -309,20 +323,20 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
           N = normalize(TBN * mapN_);
         }
 
-        if (maskCullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) {
-          // back face culling
-          if (rs::dot(N, viewDir) <= 0.0f) {
-            m.mask = 0;
-            continue;
-          }
-        }
+        // if (maskCullingMode & CudaRasterizer::MaskCullingMode::NormalCulling) {
+        //   // back face culling
+        //   if (rs::dot(N, viewDir) <= 0.0f) {
+        //     m.mask = 0;
+        //     continue;
+        //   }
+        // }
 
         m.mask = 1;
         m.texCoords = uv;
-        m.depth = bary.x * v0.clipPos.w + bary.y * v1.clipPos.w + bary.z * v2.clipPos.w;
+        m.depth = barycentric(bary, v0.depth, v1.depth, v2.depth);
         m.normal = static_cast<float3>(N);
 
-        if (basecolorTexId != nullptr && basecolorTexId[prim_id / (tessLevel * tessLevel)] > 0) {
+        if (basecolorTexId[prim_id / (tessLevel * tessLevel)] > 0) {
           float4 c = CudaRasterizer::sampleTexture(basecolorTexId[prim_id / (tessLevel * tessLevel)], uv,
                                                    textureOption);
 
@@ -346,7 +360,7 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
                               const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
                               TextureOption textureOption, float heightScale, Light lightDirection,
                               int num_triangles, int tessLevel, int width, int height,
-                              const float *projviewmatrix, const float *viewpos,
+                              const float *viewmatrix, const float *projmatrix, const float *viewpos,
                               MaskCullingMode maskCullingMode, PixelMask *mask) {
 
   if (position == nullptr || texCoords == nullptr || basecolorTexId == nullptr || normalTexId == nullptr ||
@@ -372,7 +386,7 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
   tessellate<<<(num_fine_triangles + 255) / 256, 256>>>(
       (rs::vec3 *)position, (rs::vec3 *)normal, (rs::vec2 *)texCoords, (rs::vec3 *)tangents,
       (rs::vec3 *)bitangents, heightTexId, textureOption, num_vertices, num_triangles, heightScale, tessLevel,
-      projviewmatrix, vertex_out);
+      viewmatrix, projmatrix, vertex_out);
 
   // ── Rasterize + Fragment Shader ──
   render<<<(num_fine_triangles + 255) / 256, 256>>>(

@@ -35,7 +35,8 @@ TextureGaussianModel::~TextureGaussianModel() {
   cudaFree(_model_height_map_cuda);
 
   //
-  cudaFree(_proj_view_cuda);
+  cudaFree(_view_cuda);
+  cudaFree(_proj_cuda);
   cudaFree(_mask_cuda);
 }
 
@@ -144,7 +145,8 @@ void TextureGaussianModel::initMesh() {
   std::vector<cudaTextureObject_t> selectIdx(n_faces(), 0);
   std::vector<std::uint8_t> selectedFaces(n_faces(), 0);
 
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_view_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_view_cuda, sizeof(glm::mat4)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_proj_cuda, sizeof(glm::mat4)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
 }
 
@@ -187,9 +189,10 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
 
   // Copy frame-dependent data to GPU
   uploadColmapViewPorjMatrix(camera);
-  glm::mat4 proj_view = camera.projectionMatrix() * camera.viewMatrix();
   CUDA_SAFE_CALL(
-      cudaMemcpy(_proj_view_cuda, glm::value_ptr(proj_view), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+      cudaMemcpy(_view_cuda, glm::value_ptr(camera.viewMatrix()), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(_proj_cuda, glm::value_ptr(camera.projectionMatrix()), sizeof(glm::mat4),
+                            cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
       cudaMemcpy(_cam_pos_cuda, glm::value_ptr(camera.eye()), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
@@ -203,7 +206,7 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
       _model_bitangent_cuda, faceCount * 3, _model_basecolor_map_cuda, _model_normal_map_cuda,
       _model_height_map_cuda, textureOption,
       selectedTexture != nullptr ? selectedTexture->heightScale() : 0.0f, light, faceCount, _tessLevel, width,
-      height, _proj_view_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
+      height, _view_cuda, _proj_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
 
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;

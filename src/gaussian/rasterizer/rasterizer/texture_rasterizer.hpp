@@ -12,8 +12,8 @@ void makeMask(const float *position, const float *normal, const float *texCoords
               const float *bitangents, int num_vertices, const cudaTextureObject_t *basecolorTexId,
               const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
               TextureOption textureOption, float heightScale, Light lightDirection, int num_triangles,
-              int tessLevel, int width, int height, const float *projviewmatrix, const float *viewpos,
-              MaskCullingMode maskCullingMode, PixelMask *mask);
+              int tessLevel, int width, int height, const float *viewmatrix, const float *projmatrix,
+              const float *viewpos, MaskCullingMode maskCullingMode, PixelMask *mask);
 
 } // namespace CudaRasterizer
 
