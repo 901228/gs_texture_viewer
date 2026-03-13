@@ -9,6 +9,8 @@
 
 #include <glm/glm.hpp>
 
+#include <IconsFont/IconsLucide.h>
+
 #include "../gl/program.hpp"
 #include "../texture/texture.hpp"
 #include "hit_test.hpp"
@@ -22,11 +24,17 @@ typedef std::pair<std::pair<float, float>, std::pair<float, float>> TextureLine;
 
 class TextureEditor;
 
+namespace Light {
+static constexpr const char *icon = ICON_LC_LIGHTBULB;
+}
+
 class Model {
 public:
   explicit Model();
   explicit Model(const char *path);
   virtual ~Model();
+
+  static constexpr const char *icon = ICON_LC_BOX;
 
 protected:
   MyMesh _mesh;

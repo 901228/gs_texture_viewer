@@ -113,4 +113,55 @@ inline const std::string getShaderPath(const std::string &shaderName = "") {
 
 } // namespace Utils
 
+namespace ImGui {
+
+static ImFont *iconOnlyFont;
+IMGUI_API inline void IconOnlyText(const char *icon) {
+  PushFont(iconOnlyFont);
+  Text(icon);
+  PopFont();
+}
+
+IMGUI_API inline void MiddleText(const char *text, bool iconOnly = false) {
+
+  if (iconOnly)
+    PushFont(iconOnlyFont);
+
+  SetCursorPosX((GetContentRegionAvail().x - CalcTextSize(text).x) * 0.5f);
+
+  Text(text);
+
+  if (iconOnly)
+    PopFont();
+}
+IMGUI_API inline void MiddleText(const std::string &text, bool iconOnly = false) {
+  MiddleText(text.c_str(), iconOnly);
+}
+
+IMGUI_API inline void CenterText(const char *text, bool iconOnly = false, ImVec2 p_min = {0, 0},
+                                 ImVec2 p_max = GetContentRegionAvail(), bool isGlobal = false) {
+
+  if (iconOnly)
+    PushFont(iconOnlyFont);
+
+  ImVec2 textPos = p_min + (p_max - p_min - CalcTextSize(text)) * 0.5f;
+
+  if (!isGlobal) {
+    SetCursorPos(textPos);
+  } else {
+    SetCursorScreenPos(textPos);
+  }
+
+  Text(text);
+
+  if (iconOnly)
+    PopFont();
+}
+IMGUI_API inline void CenterText(const std::string &text, bool iconOnly = false, ImVec2 p_min = {0, 0},
+                                 ImVec2 p_max = GetContentRegionAvail(), bool isGlobal = false) {
+  CenterText(text.c_str(), iconOnly, p_min, p_max, isGlobal);
+}
+
+} // namespace ImGui
+
 #endif // !UTILS_HPP

@@ -73,8 +73,6 @@ void TextureEditor::renderImage(float repeatSize) {
 void TextureEditor::renderList() {
 
   ImVec2 avail = ImGui::GetContentRegionAvail();
-  // this value is 21, but the actual value should be 17
-  avail.y -= ImGui::GetStyle().IndentSpacing;
   if (ImGui::BeginListBox("##texture list", avail)) {
 
     const float imageWidth = ImGui::GetContentRegionAvail().x;
@@ -148,7 +146,6 @@ void TextureEditor::controls() {
 
     renderList();
   }
-  ImGui::NewLine();
 }
 
 bool TextureEditor::add(const std::string &imagePath) {

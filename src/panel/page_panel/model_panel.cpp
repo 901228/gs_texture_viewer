@@ -4,9 +4,11 @@
 #include <memory>
 
 #include "main_window.hpp"
+#include "utils/camera/camera.hpp"
 #include "utils/camera/trackball_camera_three.hpp"
 #include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/opengl.hpp"
+#include "utils/imgui/sidebar.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
@@ -89,39 +91,40 @@ void ModelPanel::_renderParameterization() {
 
 void ModelPanel::_controls() {
 
-  if (ImGui::BeginTabBar("model panel control tab bar")) {
+  if (ImGui::BeginSideBar("sidebar##model_panel_sidebar")) {
 
-    if (ImGui::BeginTabItem("options")) {
+    if (ImGui::BeginSideBarItem("render##model_panel_sidebar", Model::icon)) {
 
-      // TODO: add render mode (texture coords, mesh, texture)
-      ImGui::SeparatorText("Render Option");
-      {
-        ImGui::Checkbox("wire", &wire);
-        ImGui::Checkbox("render selected only", &_renderSelectedOnly);
-        ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
-                     Utils::enumToImGuiCombo<RenderingMode>().c_str());
-      }
-      ImGui::NewLine();
+      ImGui::Checkbox("wire", &wire);
+      ImGui::Checkbox("render selected only", &_renderSelectedOnly);
+      ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
+                   Utils::enumToImGuiCombo<RenderingMode>().c_str());
 
-      ImGui::SeparatorText("Light");
-      {
-        ImGui::GizmoArrow2D("##Light Direction", _lightDir);
-        ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
-      }
-      ImGui::NewLine();
+      ImGui::EndSideBarItem();
+    }
+
+    if (ImGui::BeginSideBarItem("light##model_panel_sidebar", Light::icon)) {
+
+      ImGui::GizmoArrow2D("##Light Direction", _lightDir);
+      ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
+
+      ImGui::EndSideBarItem();
+    }
+
+    if (ImGui::BeginSideBarItem("camera##model_panel_sidebar", Camera::icon)) {
 
       camera->controls(model->center());
 
-      ImGui::EndTabItem();
+      ImGui::EndSideBarItem();
     }
 
-    if (ImGui::BeginTabItem("textures")) {
+    if (ImGui::BeginSideBarItem("textures##model_panel_sidebar", TextureEditor::icon)) {
 
       _textureEditor->controls();
 
-      ImGui::EndTabItem();
+      ImGui::EndSideBarItem();
     }
 
-    ImGui::EndTabBar();
+    ImGui::EndSideBar();
   }
 }

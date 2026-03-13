@@ -353,16 +353,7 @@ void MainWindow::CreateControlPanel() {
     ImGui::SetWindowPos({windowPos.x + mainWidth, windowPos.y + menubarOffsetY + ww});
     ImGui::SetWindowSize({ww, mainHeight - ww});
     {
-      // title
-      ImGui::NewLine();
-      const char *text = "Controls";
-      ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize(text).x) * 0.5f);
-      ImGui::Text(text);
-      ImGui::NewLine();
-
       panels[currentPanel]->controls();
-
-      ImGui::NewLine();
     }
 
     ImGui::End();

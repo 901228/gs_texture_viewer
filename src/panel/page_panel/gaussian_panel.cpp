@@ -4,7 +4,9 @@
 
 #include "gaussian/model/gs_model.hpp"
 #include "utils/camera/imguizmo_camera.hpp"
+#include "utils/imgui/sidebar.hpp"
 #include "utils/logger.hpp"
+#include "utils/mesh/model.hpp"
 #include "utils/utils.hpp"
 
 GaussianPanel::GaussianPanel() : _gsModel(nullptr), camera(nullptr) {}
@@ -46,21 +48,30 @@ void GaussianPanel::_renderParameterization() {}
 
 void GaussianPanel::_controls() {
 
-  if (ImGui::CollapsingHeader("Gaussian Render Option")) {
-    ImGui::Indent();
+  if (ImGui::BeginSideBar("sidebar##gaussian_panel_sidebar")) {
 
-    if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
-                     Utils::enumToImGuiCombo<GaussianView::RenderingMode>().c_str())) {
-      DEBUG("change rendering mode to {}", Utils::name(currMode));
+    if (ImGui::BeginSideBarItem("render##gaussian_panel_sidebar", Model::icon)) {
+
+      if (ImGui::Combo("Render Mode", reinterpret_cast<int *>(&currMode),
+                       Utils::enumToImGuiCombo<GaussianView::RenderingMode>().c_str())) {
+        DEBUG("change rendering mode to {}", Utils::name(currMode));
+      }
+
+      if (currMode == GaussianView::RenderingMode::Splats) {
+
+        _gsModel->controls();
+      }
+
+      ImGui::EndSideBarItem();
     }
 
-    if (currMode == GaussianView::RenderingMode::Splats) {
+    if (ImGui::BeginSideBarItem("camera##gaussian_panel_sidebar", Camera::icon)) {
 
-      _gsModel->controls();
+      camera->controls(_gsModel->center());
+
+      ImGui::EndSideBarItem();
     }
 
-    ImGui::Unindent();
+    ImGui::EndSideBar();
   }
-
-  camera->controls(_gsModel->center());
 }

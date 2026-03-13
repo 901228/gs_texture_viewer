@@ -8,6 +8,8 @@
 
 #include <glm/glm.hpp>
 
+#include <IconsFont/IconsLucide.h>
+
 #include "../mesh/model.hpp"
 #include "../mesh/solve_uv.hpp"
 #include "texture.hpp"
@@ -27,6 +29,8 @@ public:
   void handleTextureInput();
   void handleBrushInput(const Camera &camera, float width, float height);
   void controls();
+
+  static constexpr const char *icon = ICON_LC_IMAGE;
 
 private:
   void renderList();
