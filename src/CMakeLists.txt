@@ -31,7 +31,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   glad glfw imgui
   OpenMeshCore OpenMeshTools
   eigen glm::glm nfd::nfd CLI11::CLI11 spdlog::spdlog tomlplusplus::tomlplusplus stb
-  magic_enum::magic_enum
+  magic_enum::magic_enum IconsFont
   GAUSSIAN_LIB)
 
 # copy executable to config build directory

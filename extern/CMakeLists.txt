@@ -57,3 +57,8 @@ add_library(stb
 target_include_directories(stb PUBLIC "stb/")
 
 add_subdirectory(magic_enum)
+
+add_library(IconsFont INTERFACE
+  IconsFont/IconsFont/IconsLucide.h
+)
+target_include_directories(IconsFont INTERFACE "IconsFont/")

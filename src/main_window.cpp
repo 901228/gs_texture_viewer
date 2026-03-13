@@ -13,6 +13,8 @@
 #include <nfd.h>
 #include <stb/stb_image.h>
 
+#include <IconsFont/IconsLucide.h>
+
 #include "panel/page_panel/gaussian_panel.hpp"
 #include "panel/page_panel/model_panel.hpp"
 #include "panel/page_panel/texture_gs_panel.hpp"
@@ -123,6 +125,43 @@ bool MainWindow::Init(bool isMultiViewport) {
 
     // Setup Dear ImGui style
     ImGui::StyleColorsLight();
+
+    // Font
+    {
+      static const float baseFontSize = 13.0f; // 13.0f is the size of the default font.
+      static const float iconFontSize =
+          baseFontSize * 2.0f /
+          3.0f; // Icon fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
+      {
+        ImFontConfig icons_config;
+        icons_config.SizePixels = baseFontSize;
+        icons_config.PixelSnapH = false;
+        io.Fonts->AddFontDefaultVector(&icons_config);
+      }
+
+      static const ImWchar lucide_icons_ranges[] = {ICON_MIN_LC, ICON_MAX_16_LC, 0};
+      const std::string lucide_ttf = Utils::Path::getAssetsPath("fonts/" FONT_ICON_FILE_NAME_LC);
+
+      // merge Lucide icon font
+      {
+        ImFontConfig icons_config;
+        icons_config.MergeMode = true;
+        icons_config.PixelSnapH = false;
+        icons_config.GlyphMinAdvanceX = iconFontSize;
+        // icons_config.GlyphOffset = {0, (baseFontSize - iconFontSize) / 2.0f}; // (1 - 2/3) / 2 = 1/6
+        io.Fonts->AddFontFromFileTTF(lucide_ttf.c_str(), iconFontSize, &icons_config, lucide_icons_ranges);
+      }
+
+      // bigger Lucide icon font for render icon only text
+      {
+        static const float biggerIconFontSize = 16.0f;
+        ImFontConfig icons_config;
+        icons_config.MergeMode = false;
+        icons_config.GlyphMinAdvanceX = biggerIconFontSize;
+        ImGui::iconOnlyFont = io.Fonts->AddFontFromFileTTF(lucide_ttf.c_str(), biggerIconFontSize,
+                                                           &icons_config, lucide_icons_ranges);
+      }
+    }
 
     // Setup Platform/Renderer backends
     if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
