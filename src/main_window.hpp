@@ -40,7 +40,7 @@ private:
   void CreateControlPanel();
   void CreateSettingPage();
 
-  void CreateMetricsPanel(ImVec2 pos, ImVec2 size = {128, 128}, float padding = 8);
+  void CreateMetricsPanel(ImVec2 rightTopPos);
 
 private:
   // constants

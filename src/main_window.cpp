@@ -276,25 +276,40 @@ void MainWindow::CreateMenuBar() {
   }
 }
 
-void MainWindow::CreateMetricsPanel(ImVec2 pos, ImVec2 size, float padding) {
-
-  ImVec2 _padding = {padding, padding};
+void MainWindow::CreateMetricsPanel(ImVec2 rightTopPos) {
 
   // ImVec2 originalPos = ImGui::GetCursorScreenPos();
   {
-    ImGui::SetCursorScreenPos(pos);
-    if (ImGui::BeginChild("metrics", size)) {
+    const float fontSize = ImGui::GetFontSize();
+    const float padding = 8.0f;
 
-      ImGui::GetWindowDrawList()->AddRectFilled(pos, pos + size, 0xAAAAAAAA);
+    ImVec2 iconPos{rightTopPos.x - fontSize - padding * 2, rightTopPos.y};
+    ImGui::SetCursorScreenPos(iconPos);
+    if (ImGui::BeginChild("metrics", {fontSize + padding * 2, fontSize + padding * 2})) {
 
-      ImGui::SetCursorScreenPos(pos + _padding);
-      if (ImGui::BeginChild("metrics content", size - _padding * 2)) {
+      ImGui::CenterText(ICON_LC_INFO, true);
+
+      if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
 
         ImGui::Text("FPS: %.1f", _frameRate);
+
+        ImGui::EndTooltip();
       }
+
       ImGui::EndChild();
     }
-    ImGui::EndChild();
+
+    // TODO: collapsable
+    // ImGui::SetCursorScreenPos(pos);
+    // ImGui::PushStyleColor(ImGuiCol_ChildBg, 0xAAAAAAAA);
+    // if (ImGui::BeginChild("metrics", size)) {
+    //   ImGui::SetCursorPos(_padding);
+
+    //   ImGui::Text("FPS: %.1f", _frameRate);
+
+    //   ImGui::EndChild();
+    // }
+    // ImGui::PopStyleColor();
   }
   // ImGui::SetCursorScreenPos(originalPos);
 }
@@ -312,15 +327,14 @@ void MainWindow::CreateMainView() {
         if (ImGui::BeginTabItem(panels[i]->name().c_str())) {
 
           currentPanel = i;
-          static const ImVec2 metricsWindowSize = {128, 128};
-          ImVec2 pos = ImGui::GetCursorScreenPos();
-          pos.x += ImGui::GetContentRegionAvail().x - metricsWindowSize.x;
+          const ImVec2 pos = ImGui::GetCursorScreenPos();
+          const ImVec2 rightTopPos{pos.x + ImGui::GetContentRegionAvail().x, pos.y};
 
           const ImVec2 _size = ImGui::GetContentRegionAvail();
           panels[i]->onResize(_size.x, _size.y);
           panels[i]->render();
 
-          CreateMetricsPanel(pos, metricsWindowSize);
+          CreateMetricsPanel(rightTopPos);
 
           ImGui::EndTabItem();
         }
