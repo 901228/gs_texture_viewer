@@ -1,0 +1,320 @@
+#include "harmonics.hpp"
+
+#include <numbers>
+
+#include <Eigen/Sparse>
+
+namespace {
+
+void CopySelectFace(const std::unordered_set<unsigned int> &selectedID, const MyMesh &originMesh,
+                    MyMesh &mesh) {
+
+  mesh.request_vertex_normals();
+  mesh.request_face_normals();
+
+  std::vector<MyMesh::VertexHandle> vhs;
+  vhs.reserve(3);
+
+  std::map<int, int> usedVertices;
+
+  for (unsigned int id : selectedID) {
+
+    MyMesh::FaceHandle fh = originMesh.face_handle(id);
+    for (MyMesh::VertexHandle vh_it : originMesh.fv_range(fh)) {
+
+      MyMesh::VertexHandle vh;
+      MyMesh::Point p = originMesh.point(vh_it);
+
+      if (usedVertices.find(vh_it.idx()) == usedVertices.end()) {
+
+        vh = mesh.add_vertex(p); // NOLINT(cppcoreguidelines-slicing)
+        usedVertices[vh_it.idx()] = vh.idx();
+      } else
+        vh = mesh.vertex_handle(usedVertices[vh_it.idx()]);
+
+      vhs.push_back(vh);
+    }
+
+    mesh.add_face(vhs);
+    vhs.clear();
+  }
+
+  mesh.update_normals();
+}
+
+} // namespace
+
+namespace Harmonics {
+
+void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, bool isQuad) {
+
+  if (selectedID.empty())
+    return;
+
+  OpenMesh::HPropHandleT<double> heWeight;
+  OpenMesh::VPropHandleT<int> row;
+  MyMesh _mesh;
+  _mesh.add_property(heWeight, "heWeight");
+  _mesh.add_property(row, "row");
+  _mesh.request_vertex_texcoords2D();
+
+  CopySelectFace(selectedID, originMesh, _mesh);
+
+  // calculate weight
+  MyMesh::HalfedgeHandle heh;
+  for (MyMesh::EdgeHandle eh : _mesh.edges()) {
+
+    if (_mesh.is_boundary(eh)) {
+
+      if (!heh.is_valid())
+        heh = _mesh.halfedge_handle(eh, 1);
+      continue;
+    }
+
+    MyMesh::HalfedgeHandle _heh = _mesh.halfedge_handle(eh, 0);
+    MyMesh::Point pFrom = _mesh.point(_mesh.from_vertex_handle(_heh));
+    MyMesh::Point pTo = _mesh.point(_mesh.to_vertex_handle(_heh));
+    MyMesh::Point p1 = _mesh.point(_mesh.to_vertex_handle(_mesh.next_halfedge_handle(_heh)));
+    MyMesh::Point p2 =
+        _mesh.point(_mesh.to_vertex_handle(_mesh.next_halfedge_handle(_mesh.opposite_halfedge_handle(_heh))));
+
+    double edgeLen = (pFrom - pTo).length();
+
+    OpenMesh::Vec3d v1 = static_cast<OpenMesh::Vec3d>(pTo - pFrom);
+    v1.normalize();
+
+    // weight from to
+    {
+      OpenMesh::Vec3d v2 = static_cast<OpenMesh::Vec3d>(p1 - pFrom);
+      v2.normalize();
+
+      double angle1 = std::acos(OpenMesh::dot(v1, v2));
+
+      v2 = (OpenMesh::Vec3d)(p2 - pFrom);
+      v2.normalize();
+
+      double angle2 = std::acos(OpenMesh::dot(v1, v2));
+
+      _mesh.property(heWeight, _heh) = ((std::tan(angle1 / 2.0) + std::tan(angle2 / 2.0)) / edgeLen);
+    }
+
+    // weight to from
+    {
+      v1 = -v1;
+
+      OpenMesh::Vec3d v2 = static_cast<OpenMesh::Vec3d>(p1 - pTo);
+      v2.normalize();
+
+      double angle1 = std::acos(OpenMesh::dot(v1, v2));
+
+      v2 = (OpenMesh::Vec3d)(p2 - pTo);
+      v2.normalize();
+
+      double angle2 = std::acos(OpenMesh::dot(v1, v2));
+
+      _mesh.property(heWeight, _heh) = ((std::tan(angle1 / 2.0) + std::tan(angle2 / 2.0)) / edgeLen);
+    }
+  }
+
+  // calculate matrix size
+  int count = 0;
+  for (MyMesh::VertexHandle vh : _mesh.vertices()) {
+
+    if (_mesh.is_boundary(vh))
+      _mesh.property(row, vh) = -1;
+    else
+      _mesh.property(row, vh) = count++;
+  }
+
+  // calculate perimeter
+  double perimeter = 0;
+  std::vector<double> segLength;
+  std::vector<MyMesh::VertexHandle> vhs;
+  MyMesh::HalfedgeHandle hehNext = heh;
+  do {
+
+    MyMesh::Point from = _mesh.point(_mesh.from_vertex_handle(hehNext));
+    MyMesh::Point to = _mesh.point(_mesh.to_vertex_handle(hehNext));
+    perimeter += (from - to).length();
+
+    segLength.push_back(perimeter);
+    vhs.push_back(_mesh.from_vertex_handle(hehNext));
+
+    hehNext = _mesh.next_halfedge_handle(hehNext);
+  } while (heh != hehNext);
+
+  // put boundry texture coords into mesh
+  {
+    if (isQuad) {
+
+      float rd = 225.0f * std::numbers::pi_v<float> / 180.0f;
+      float initDist = 0;
+      MyMesh::TexCoord2D st(0, 0);
+      float R = std::sqrtf(2) / 2.0f;
+      st[0] = R * cosf(rd) + 0.5f;
+      st[1] = R * sinf(rd) + 0.5f;
+
+      if (st[0] > 1) {
+        st[0] = 1;
+        st[1] = tanf(rd) / 2 + 0.5f;
+      }
+
+      if (st[0] < 0) {
+        st[0] = 0;
+        st[1] = 0.5f - tanf(rd) / 2;
+      }
+
+      if (st[1] > 1) {
+        st[0] = tanf(std::numbers::pi_v<float> / 2.0f - rd) / 2 + 0.5f;
+        st[1] = 1;
+      }
+
+      if (st[1] < 0) {
+        st[0] = 0.5f - tanf(std::numbers::pi_v<float> / 2.0f - rd) / 2;
+        st[1] = 0;
+      }
+
+      initDist = st.length();
+
+      _mesh.set_texcoord2D(vhs[0], st);
+      perimeter /= 4.0;
+      for (int i = 1; i < vhs.size(); ++i) {
+        double curLen = segLength[i - 1] / perimeter + initDist;
+        if (curLen > 4) {
+          curLen -= 4;
+        }
+
+        if (curLen <= 1) {
+          st[0] = static_cast<float>(curLen);
+          st[1] = 0;
+        } else if (curLen <= 2) {
+          st[0] = 1;
+          st[1] = static_cast<float>(curLen) - 1;
+        } else if (curLen <= 3) {
+          st[0] = 3 - static_cast<float>(curLen);
+          st[1] = 1;
+        } else {
+          st[0] = 0;
+          st[1] = 4 - static_cast<float>(curLen);
+        }
+
+        _mesh.set_texcoord2D(vhs[i], st);
+      }
+    } else {
+
+      MyMesh::TexCoord2D st(1.0f, 0.5f);
+      _mesh.set_texcoord2D(vhs[0], st);
+
+      for (int i = 1; i < vhs.size(); ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(segLength[i - 1]) /
+                      static_cast<float>(perimeter);
+
+        st[0] = (std::cosf(angle) + 1) / 2;
+        st[1] = (std::sinf(angle) + 1) / 2;
+
+        _mesh.set_texcoord2D(vhs[i], st);
+      }
+    }
+  }
+
+  // cauculate inner points
+  {
+    Eigen::SparseMatrix<double> A(count, count);
+    Eigen::VectorXd BX(count);
+    BX.setZero();
+    Eigen::VectorXd BY(count);
+    BY.setZero();
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> linearSolver;
+
+    // fill matrix
+    for (MyMesh::VertexHandle vh_i : _mesh.vertices()) {
+
+      if (_mesh.is_boundary(vh_i))
+        continue;
+
+      int i = _mesh.property(row, vh_i);
+      double totalWeight = 0;
+
+      for (MyMesh::VertexHandle vh_j : _mesh.vv_range(vh_i)) {
+
+        // NOLINTNEXTLINE(cppcoreguidelines-slicing)
+        double w = _mesh.property(heWeight, _mesh.find_halfedge(vh_i, vh_j));
+
+        if (_mesh.is_boundary(vh_j)) {
+
+          MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(vh_j);
+          BX[i] += w * texCoord[0];
+          BY[i] += w * texCoord[1];
+        } else {
+
+          int j = _mesh.property(row, vh_j);
+          A.insert(i, j) = -w;
+        }
+
+        totalWeight += w;
+      }
+
+      A.insert(i, i) = totalWeight;
+    }
+
+    // solve the linear system
+    Eigen::VectorXd TX;
+    Eigen::VectorXd TY;
+    {
+      A.makeCompressed();
+
+      Eigen::SparseMatrix<double> At = A.transpose();
+      linearSolver.compute(At * A);
+
+      TX = linearSolver.solve(At * BX);
+      TY = linearSolver.solve(At * BY);
+    }
+
+    // put the texture coords in to _mesh
+    for (MyMesh::VertexHandle vh : _mesh.vertices()) {
+
+      if (_mesh.is_boundary(vh))
+        continue;
+
+      int i = _mesh.property(row, vh);
+      _mesh.set_texcoord2D(vh, {TX[i], TY[i]});
+    }
+  }
+
+  // put the texture coords back to Mesh
+  {
+    // check whether Mesh has vertex texcoord2D
+    if (!originMesh.has_vertex_texcoords2D()) {
+
+      originMesh.request_vertex_texcoords2D();
+      for (MyMesh::VertexHandle vh : originMesh.vertices())
+        originMesh.set_texcoord2D(vh, {-1, -1});
+    }
+
+    // check whether Mesh has face texture index
+    if (!originMesh.has_face_texture_index()) {
+
+      originMesh.request_face_texture_index();
+      for (MyMesh::FaceHandle fh : originMesh.faces())
+        originMesh.set_texture_index(fh, -1);
+    }
+
+    // map texcoord back to Mesh
+    auto s_it = selectedID.begin();
+    for (MyMesh::FaceHandle fh : _mesh.faces()) {
+
+      MyMesh::FaceHandle sfh = originMesh.face_handle(*s_it);
+      s_it++;
+
+      MyMesh::FaceVertexIter fv_it = _mesh.fv_iter(fh);
+      MyMesh::FaceVertexIter sfv_it = originMesh.fv_iter(sfh);
+      for (; (fv_it.is_valid() && sfv_it.is_valid()); ++fv_it, ++sfv_it) {
+
+        MyMesh::TexCoord2D texCoord = _mesh.texcoord2D(*fv_it);
+        originMesh.set_texcoord2D(*sfv_it, texCoord);
+      }
+    }
+  }
+}
+
+} // namespace Harmonics
