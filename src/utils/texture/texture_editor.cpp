@@ -9,6 +9,8 @@
 #include "../imgui/tool_line.hpp"
 #include "../utils.hpp"
 #include "texture.hpp"
+#include "utils/mesh/geodesic_splines.hpp"
+#include "utils/mesh/solve_uv.hpp"
 
 TextureEditor::TextureEditor(Model &model, bool isPBR, const std::string_view textureListPath,
                              float scaleStep, float scaleMin, float scaleMax)
@@ -114,11 +116,25 @@ void TextureEditor::controls() {
   ImGui::SeparatorText("Solving Texture Coords");
   {
     ImGui::Checkbox("Auto Solve Texture Coords", &_autoCalculate);
+
     ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
                  Utils::enumToImGuiCombo<SolveUV::SolvingMode>().c_str());
+
+    if (_solvingMode == SolveUV::SolvingMode::GeodesicSplines) {
+
+      if (ImGui::CollapsingHeader("Geodesic Splines")) {
+
+        ImGui::SliderInt("n (step)", &GeodesicSplines::settings.n, 20, 300);
+        ImGui::SliderFloat("h (step size)", &GeodesicSplines::settings.h, 0.01f, 0.1f, "%.2f");
+        ImGui::Checkbox("Use Sub-Stepped Project", &GeodesicSplines::settings.useSubSteppedProject);
+        ImGui::Checkbox("Enable Smoothing", &GeodesicSplines::settings.enableSmoothing);
+        ImGui::Checkbox("Show Debug", &GeodesicSplines::debugStruct.show);
+        ImGui::NewLine();
+      }
+    }
+
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-      // TODO: implement angle ?
-      _model.calculateParameterization(_solvingMode, 0.0f);
+      _model.calculateParameterization(_solvingMode);
       _solved = true;
     }
   }
@@ -131,7 +147,7 @@ void TextureEditor::controls() {
 
     if (_autoCalculate && !_solved) {
 
-      _model.calculateParameterization(_solvingMode, 0.0f);
+      _model.calculateParameterization(_solvingMode);
       _solved = true;
     }
 
@@ -298,6 +314,7 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
       glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
       glm::vec2 mousePosInWindow = mousePos - windowPos;
       auto [minT, selectedID, hitPos] = _model.select(camera, width, height, mousePosInWindow);
+      // TODO: use hit pos to set the center for solving UV (Expmap, GeodesicSplines)
 
       if (selectedID >= 0 && selectedID < _model.n_faces()) {
         bool dirty = _model.selectRadius(selectedID, _brushRadius - 1, isLeftDown);

@@ -47,11 +47,10 @@ cudaTextureAddressMode TextureWrap::cuda(Mode mode) {
   }
 }
 
-std::unique_ptr<ImageTexture> ImageTexture::create(const std::string &path, TextureWrap::Mode wrapX,
-                                                   TextureWrap::Mode wrapY) {
+std::unique_ptr<ImageTexture> ImageTexture::create(const std::string &path, ColorType colorType,
+                                                   TextureWrap::Mode wrapX, TextureWrap::Mode wrapY) {
   unsigned int id;
   float width, height;
-  ColorType colorType;
   if (!loadImage(path, id, width, height, wrapX, wrapY, colorType)) {
     return nullptr;
   }
@@ -82,9 +81,9 @@ bool ImageTexture::loadImage(const std::string &path, unsigned int &id, float &w
   try {
     glGenTextures(1, &id);
 
-    int w, h, nrComponents;
+    int w, h, nrComponents, desired_channels = static_cast<int>(colorType);
     stbi_set_flip_vertically_on_load(true);
-    data = stbi_load(path.c_str(), &w, &h, &nrComponents, 0);
+    data = stbi_load(path.c_str(), &w, &h, &nrComponents, desired_channels);
 
     if (data) {
 
@@ -249,8 +248,8 @@ PBRTexture::PBRTexture(const std::string path, std::string basecolorPath, std::s
 
   auto directoryPath = std::filesystem::path(path);
   _basecolor = ImageTexture::create((directoryPath / basecolorPath).string());
-  _normal = ImageTexture::create((directoryPath / normalPath).string());
-  _height = ImageTexture::create((directoryPath / heightPath).string());
+  _normal = ImageTexture::create((directoryPath / normalPath).string(), ImageTexture::ColorType::RGB);
+  _height = ImageTexture::create((directoryPath / heightPath).string(), ImageTexture::ColorType::R);
 
   assert(_basecolor->colorType() == ImageTexture::ColorType::RGBA ||
          _basecolor->colorType() == ImageTexture::ColorType::RGB);

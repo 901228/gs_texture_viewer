@@ -6,7 +6,8 @@
 #include <Eigen/Sparse>
 #include <glad/gl.h>
 
-#include "expmap_helper.hpp"
+#include "expmap.hpp"
+#include "geodesic_splines.hpp"
 
 #define Quad
 
@@ -48,8 +49,7 @@ void CopySelectFace(const std::unordered_set<unsigned int> &selectedID, const My
 
 namespace SolveUV {
 
-void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle,
-                    MyMesh &originMesh) {
+void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh) {
   if (selectedID.empty())
     return;
 
@@ -148,7 +148,7 @@ void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uv
   // put boundry texture coords into mesh
   {
 #ifdef Quad
-    float rd = (225.0f + uvRotateAngle) * std::numbers::pi_v<float> / 180.0f;
+    float rd = 225.0f * std::numbers::pi_v<float> / 180.0f;
     float initDist = 0;
     MyMesh::TexCoord2D st(0, 0);
     float R = std::sqrtf(2) / 2.0f;
@@ -175,21 +175,7 @@ void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uv
       st[1] = 0;
     }
 
-    if (uvRotateAngle <= 90) {
-      initDist = st.length();
-    }
-
-    else if (uvRotateAngle <= 180) {
-      initDist = 1 + st[1];
-    }
-
-    else if (uvRotateAngle <= 270) {
-      initDist = 3 - st[0];
-    }
-
-    else {
-      initDist = 4 - st[1];
-    }
+    initDist = st.length();
 
     _mesh.set_texcoord2D(vhs[0], st);
     perimeter /= 4.0;
@@ -331,14 +317,13 @@ void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uv
   }
 }
 
-void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle,
-                 MyMesh &originMesh) {
+void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh) {
 
   if (selectedID.empty())
     return;
 
   // Auto-compute center from selection
-  int centerVertex = ExpHelper::computeCenterFromFaces(selectedID, originMesh);
+  int centerVertex = ExpMap::computeCenterFromFaces(selectedID, originMesh);
   if (centerVertex < 0)
     return;
 
@@ -361,41 +346,24 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
 
   // Initialize per-vertex data
   size_t numVerts = originMesh.n_vertices();
-  std::vector<ExpHelper::ExpMapVertex> vertices(numVerts);
+  std::vector<ExpMap::ExpMapVertex> vertices(numVerts);
 
   for (MyMesh::VertexHandle vh : originMesh.vertices()) {
     vertices[vh.idx()].vh = vh;
-    vertices[vh.idx()].state = ExpHelper::ExpMapVertex::State::INACTIVE;
+    vertices[vh.idx()].state = ExpMap::ExpMapVertex::State::INACTIVE;
     vertices[vh.idx()].distance = std::numeric_limits<float>::max();
   }
 
   // Initialize seed vertex
   int seedIdx = seedVh.idx();
-  ExpHelper::ExpMapVertex &seed = vertices[seedIdx];
-  seed.state = ExpHelper::ExpMapVertex::State::FROZEN;
+  ExpMap::ExpMapVertex &seed = vertices[seedIdx];
+  seed.state = ExpMap::ExpMapVertex::State::FROZEN;
   seed.distance = 0.0f;
   seed.surfaceVector = glm::vec2(0, 0);
 
   glm::vec3 seedPos = Utils::toGlm(originMesh.point(seedVh));
   glm::vec3 seedNormal = Utils::toGlm(originMesh.normal(seedVh));
-  seed.frame = ExpHelper::TangentFrame(seedPos, seedNormal);
-
-  // Apply rotation to seed frame around Z-axis (normal)
-  if (uvRotateAngle != 0.0f) {
-    float angleRadians = glm::radians(uvRotateAngle);
-    float cosTheta = std::cos(angleRadians);
-    float sinTheta = std::sin(angleRadians);
-
-    glm::vec3 oldX = seed.frame.axes[0];
-    glm::vec3 oldY = seed.frame.axes[1];
-    glm::vec3 oldZ = seed.frame.axes[2]; // Normal, unchanged
-
-    // Rotate X and Y around Z
-    glm::vec3 newX = cosTheta * oldX + sinTheta * oldY;
-    glm::vec3 newY = -sinTheta * oldX + cosTheta * oldY;
-
-    seed.frame.axes = glm::mat3(newX, newY, oldZ);
-  }
+  seed.frame = ExpMap::TangentFrame(seedPos, seedNormal);
 
   // Priority queue (min-heap by distance)
   auto cmp = [&vertices](int a, int b) { return vertices[a].distance > vertices[b].distance; };
@@ -409,7 +377,7 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
     auto &nv = vertices[nvh.idx()];
     nv.distance = glm::length(Utils::toGlm(originMesh.point(nvh)) - seedPos);
     nv.nearest = seedVh;
-    nv.state = ExpHelper::ExpMapVertex::State::ACTIVE;
+    nv.state = ExpMap::ExpMapVertex::State::ACTIVE;
     pq.push(nvh.idx());
   }
 
@@ -419,10 +387,10 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
     pq.pop();
 
     auto &cur = vertices[curIdx];
-    if (cur.state == ExpHelper::ExpMapVertex::State::FROZEN) {
+    if (cur.state == ExpMap::ExpMapVertex::State::FROZEN) {
       continue; // Already processed
     }
-    cur.state = ExpHelper::ExpMapVertex::State::FROZEN;
+    cur.state = ExpMap::ExpMapVertex::State::FROZEN;
 
     // Propagate frame and compute surface vector
     propagateFrame(vertices, cur, seedIdx, originMesh);
@@ -441,7 +409,7 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
 
       auto &nv = vertices[nvh.idx()];
 
-      if (nv.state == ExpHelper::ExpMapVertex::State::FROZEN) {
+      if (nv.state == ExpMap::ExpMapVertex::State::FROZEN) {
         continue;
       }
 
@@ -451,7 +419,7 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
       if (newDist < nv.distance) {
         nv.distance = newDist;
         nv.nearest = curVh;
-        nv.state = ExpHelper::ExpMapVertex::State::ACTIVE;
+        nv.state = ExpMap::ExpMapVertex::State::ACTIVE;
         pq.push(nvh.idx());
       }
     }
@@ -486,7 +454,7 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
 
     for (auto vh : originMesh.vertices()) {
       auto &v = vertices[vh.idx()];
-      if (v.state == ExpHelper::ExpMapVertex::State::FROZEN) {
+      if (v.state == ExpMap::ExpMapVertex::State::FROZEN) {
         // Transform geodesic coords to [0,1] UV space
         glm::vec2 uv = v.surfaceVector * uvScale + 0.5f;
         originMesh.set_texcoord2D(vh, {uv.x, uv.y});
@@ -499,6 +467,12 @@ void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRot
       }
     }
   }
+}
+
+void SolveGeodesicSplines(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh,
+                          const BVH::BVH &bvh) {
+
+  GeodesicSplines::Solve(selectedID, originMesh, bvh);
 }
 
 } // namespace SolveUV

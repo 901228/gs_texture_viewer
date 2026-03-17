@@ -31,6 +31,16 @@ inline glm::vec2 toGlm(const MyMesh::TexCoord2D &p) { return {p[0], p[1]}; }
 inline float2 toFloat2(const glm::vec2 &v) { return {v.x, v.y}; }
 inline float3 toFloat3(const glm::vec3 &v) { return {v.x, v.y, v.z}; }
 
+inline glm::vec3 barycentric(glm::vec3 bary, glm::vec3 p0, glm::vec3 p1, glm::vec3 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+inline glm::vec2 barycentric(glm::vec3 bary, glm::vec2 p0, glm::vec2 p1, glm::vec2 p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+inline float barycentric(glm::vec3 bary, float p0, float p1, float p2) {
+  return bary.x * p0 + bary.y * p1 + bary.z * p2;
+}
+
 template <typename EnumType> inline std::string enumToImGuiCombo() {
 
   std::string result;

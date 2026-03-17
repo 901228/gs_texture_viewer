@@ -143,4 +143,84 @@ bool BVH::intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const 
   return result;
 }
 
+ClosestPointResult BVH::closestPointOnTriangle(const glm::vec3 &p, const Triangle &tri) {
+
+  const glm::vec3 &a = tri.v0;
+  const glm::vec3 &b = tri.v1;
+  const glm::vec3 &c = tri.v2;
+
+  glm::vec3 ab = b - a, ac = c - a, ap = p - a;
+  float d1 = glm::dot(ab, ap), d2 = glm::dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0)
+    return {a, {1, 0, 0}, tri.faceIdx, glm::dot(p - a, p - a)};
+
+  glm::vec3 bp = p - b;
+  float d3 = glm::dot(ab, bp), d4 = glm::dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3)
+    return {b, {0, 1, 0}, tri.faceIdx, glm::dot(p - b, p - b)};
+
+  glm::vec3 cp = p - c;
+  float d5 = glm::dot(ab, cp), d6 = glm::dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6)
+    return {c, {0, 0, 1}, tri.faceIdx, glm::dot(p - c, p - c)};
+
+  float vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+    float v = d1 / (d1 - d3);
+    glm::vec3 pt = a + v * ab;
+    return {pt, {1 - v, v, 0}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+  }
+
+  float vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+    float w = d2 / (d2 - d6);
+    glm::vec3 pt = a + w * ac;
+    return {pt, {1 - w, 0, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+  }
+
+  float va = d3 * d6 - d5 * d4;
+  if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
+    float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+    glm::vec3 pt = b + w * (c - b);
+    return {pt, {0, 1 - w, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+  }
+
+  float denom = 1.f / (va + vb + vc);
+  float v = vb * denom, w = vc * denom;
+  glm::vec3 pt = a + v * ab + w * ac;
+  return {pt, {1 - v - w, v, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+}
+
+[[nodiscard]] ClosestPointResult BVH::closestPoint(const glm::vec3 &p) const {
+
+  ClosestPointResult best;
+  if (_nodes.empty())
+    return best;
+
+  int stack[64];
+  int stackTop = 0;
+  stack[stackTop++] = 0;
+
+  while (stackTop > 0) {
+    int idx = stack[--stackTop];
+    const BVHNode &node = _nodes[idx];
+
+    // if the closest distance of this AABB is farther than the current best, prune
+    if (node.aabb.minDist2FromPoint(p) >= best.dist2)
+      continue;
+
+    if (node.isLeaf()) {
+      for (int i = node.triStart; i < node.triStart + node.triCount; i++) {
+        auto r = closestPointOnTriangle(p, _tris[i]);
+        if (r.dist2 < best.dist2)
+          best = r;
+      }
+    } else {
+      stack[stackTop++] = node.leftChild;
+      stack[stackTop++] = node.rightChild;
+    }
+  }
+  return best;
+}
+
 }; // namespace BVH

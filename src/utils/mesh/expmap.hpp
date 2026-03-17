@@ -1,5 +1,5 @@
-#ifndef EXPMAP_HELPER_HPP
-#define EXPMAP_HELPER_HPP
+#ifndef EXPMAP_HPP
+#define EXPMAP_HPP
 #pragma once
 
 #include <unordered_set>
@@ -12,7 +12,7 @@
 
 #include "../utils.hpp"
 
-namespace ExpHelper {
+namespace ExpMap {
 
 inline int computeCenterFromFaces(const std::unordered_set<unsigned int> &selectedID, const MyMesh &mesh) {
   if (selectedID.empty())
@@ -184,6 +184,6 @@ inline void propagateFrame(std::vector<ExpMapVertex> &vertices, ExpMapVertex &cu
   }
 }
 
-} // namespace ExpHelper
+} // namespace ExpMap
 
-#endif // !EXPMAP_HELPER_HPP
+#endif // !EXPMAP_HPP

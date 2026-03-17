@@ -4,25 +4,31 @@
 
 #include <unordered_set>
 
+#include "hit_test.hpp"
 #include "mesh.hpp"
 
 namespace SolveUV {
 
-enum class SolvingMode : int { Harmonics, ExpMap };
+enum class SolvingMode : int { Harmonics, ExpMap, GeodesicSplines };
 
-void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle,
-                    MyMesh &originMesh);
+void SolveHarmonics(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh);
 
-void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, float uvRotateAngle, MyMesh &originMesh);
+void SolveExpMap(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh);
+
+void SolveGeodesicSplines(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh,
+                          const BVH::BVH &bvh);
 
 inline void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID,
-                  float uvRotateAngle, MyMesh &originMesh) {
+                  MyMesh &originMesh, const BVH::BVH &bvh) {
   switch (mode) {
   case SolvingMode::Harmonics:
-    SolveHarmonics(selectedID, uvRotateAngle, originMesh);
+    SolveHarmonics(selectedID, originMesh);
     break;
   case SolvingMode::ExpMap:
-    SolveExpMap(selectedID, uvRotateAngle, originMesh);
+    SolveExpMap(selectedID, originMesh);
+    break;
+  case SolvingMode::GeodesicSplines:
+    SolveGeodesicSplines(selectedID, originMesh, bvh);
     break;
   default:
     throw std::runtime_error("Unknown solving mode!");

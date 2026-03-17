@@ -22,11 +22,11 @@ cudaTextureAddressMode cuda(Mode mode);
 
 class ImageTexture {
 public:
-  static std::unique_ptr<ImageTexture> create(const std::string &path,
+  enum class ColorType { Auto = 0, RGBA = 4, RGB = 3, R = 1 };
+
+  static std::unique_ptr<ImageTexture> create(const std::string &path, ColorType colorType = ColorType::Auto,
                                               TextureWrap::Mode wrapX = TextureWrap::Mode::Repeat,
                                               TextureWrap::Mode wrapY = TextureWrap::Mode::Repeat);
-
-  enum class ColorType { RGBA, RGB, R };
 
   explicit ImageTexture(const std::string &path, const unsigned int &id, const float &width,
                         const float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY,

@@ -42,9 +42,13 @@ private:
   // brush and solving
   int _brushRadius = 10;
 
-  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
+  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::GeodesicSplines;
   bool _solved = false;
   bool _autoCalculate = true;
+
+public:
+  inline const SolveUV::SolvingMode solvingMode() const { return _solvingMode; }
+  inline const bool isGeodesic() const { return _solvingMode == SolveUV::SolvingMode::GeodesicSplines; }
 
 private:
   // texture

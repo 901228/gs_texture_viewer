@@ -9,6 +9,7 @@
 #include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/imgui/sidebar.hpp"
+#include "utils/mesh/geodesic_splines.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
@@ -36,6 +37,7 @@ void ModelPanel::_onResize(float width, float height) {
 void ModelPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImDrawList *drawList;
 
   if (ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag)) {
 
@@ -57,8 +59,15 @@ void ModelPanel::_render() {
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
+
+    drawList = ImGui::GetWindowDrawList();
   }
   ImGui::EndOpenGL();
+
+  if (_textureEditor->isGeodesic() && GeodesicSplines::debugStruct.show) {
+    GeodesicSplines::debugStruct.draw(drawList, pos, camera->projectionMatrix() * camera->viewMatrix(),
+                                      _width, _height);
+  }
 }
 
 void ModelPanel::_renderParameterization() {

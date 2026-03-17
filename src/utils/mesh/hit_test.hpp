@@ -12,6 +12,17 @@ struct HitResult {
   glm::vec3 hitPoint{};
 };
 
+/**
+ * For Geodesic Splines
+ * Given a point, find the closest point on the mesh.
+ */
+struct ClosestPointResult {
+  glm::vec3 point{};
+  glm::vec3 bary{}; // barycentric (u, v, w), u+v+w=1
+  int faceIdx = -1;
+  float dist2 = 1e18f;
+};
+
 namespace BVH {
 
 struct AABB {
@@ -39,6 +50,12 @@ struct AABB {
     tMin = glm::max(tSmall.x, glm::max(tSmall.y, tSmall.z));
     tMax = glm::min(tLarge.x, glm::min(tLarge.y, tLarge.z));
     return tMax >= tMin && tMax > 1e-4f;
+  }
+
+  inline float minDist2FromPoint(const glm::vec3 &p) const {
+    glm::vec3 clamped = glm::clamp(p, min, max);
+    glm::vec3 diff = p - clamped;
+    return glm::dot(diff, diff);
   }
 };
 
@@ -75,6 +92,14 @@ private:
 
   // Möller–Trumbore
   static bool intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const glm::vec3 &dir, float &t);
+
+public:
+  // closest point on mesh
+  [[nodiscard]] ClosestPointResult closestPoint(const glm::vec3 &p) const;
+
+private:
+  // Eberly's point-to-triangle closest point
+  static ClosestPointResult closestPointOnTriangle(const glm::vec3 &p, const Triangle &tri);
 };
 
 } // namespace BVH
