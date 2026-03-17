@@ -2,11 +2,14 @@
 
 #include <chrono>
 #include <numbers>
-
-#include <Eigen/Sparse>
 #include <random>
 #include <unordered_set>
 #include <utility>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/component_wise.hpp>
+
+#include <Eigen/Sparse>
 
 #include "../utils.hpp"
 #include "hit_test.hpp"
@@ -369,6 +372,32 @@ struct LogMapTable {
   std::vector<glm::vec2> uvs;   // tangent space coords
   std::vector<glm::vec3> pts3d; // corresponding 3D positions
 
+  // Grid Acceleration
+  int gridRes = 32;
+  float cellSize;
+  glm::vec3 gridMin;
+  std::vector<std::vector<int>> grid; // gridRes^3
+
+  void buildGrid() {
+
+    // 計算 pts3d 的 AABB
+    glm::vec3 bmin(1e9), bmax(-1e9);
+    for (auto &p : pts3d) {
+      bmin = glm::min(bmin, p);
+      bmax = glm::max(bmax, p);
+    }
+    gridMin = bmin;
+    cellSize = glm::compMax(bmax - bmin) / gridRes;
+
+    grid.resize(gridRes * gridRes * gridRes);
+    for (int k = 0; k < (int)pts3d.size(); ++k) {
+      glm::ivec3 cell =
+          glm::clamp(glm::ivec3((pts3d[k] - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+      int idx = cell.x + gridRes * (cell.y + gridRes * cell.z);
+      grid[idx].push_back(k);
+    }
+  }
+
   void build(const std::vector<MapInterpolation::PeriodicSpline> &isolineSplines, int n, float h,
              const glm::vec3 &origin, int numSamples = 5000) {
 
@@ -395,19 +424,36 @@ struct LogMapTable {
       uvs.push_back(uv);
       pts3d.push_back(pt);
     }
+
+    buildGrid();
   }
 
-  // 給定 3D 點，查詢對應 UV（brute force，可之後換 BVH）
+  // given a 3D point, find the corresponding UV
   glm::vec2 query(const glm::vec3 &p) const {
+
+    glm::ivec3 cell =
+        glm::clamp(glm::ivec3((p - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+
     float best = 1e18f;
     int bestIdx = 0;
-    for (int k = 0; k < (int)pts3d.size(); ++k) {
-      float d2 = glm::dot(p - pts3d[k], p - pts3d[k]);
-      if (d2 < best) {
-        best = d2;
-        bestIdx = k;
-      }
-    }
+    // 只搜周圍 3x3x3 cells
+    for (int dz = -1; dz <= 1; ++dz)
+      for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -1; dx <= 1; ++dx) {
+          glm::ivec3 nb = cell + glm::ivec3(dx, dy, dz);
+          if (glm::any(glm::lessThan(nb, glm::ivec3(0))))
+            continue;
+          if (glm::any(glm::greaterThanEqual(nb, glm::ivec3(gridRes))))
+            continue;
+          int idx = nb.x + gridRes * (nb.y + gridRes * nb.z);
+          for (int k : grid[idx]) {
+            float d2 = glm::dot(p - pts3d[k], p - pts3d[k]);
+            if (d2 < best) {
+              best = d2;
+              bestIdx = k;
+            }
+          }
+        }
     return uvs[bestIdx];
   }
 };
