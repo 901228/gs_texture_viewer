@@ -73,7 +73,8 @@ int BVH::buildRecursive(int start, int count, int depth) {
   return nodeIdx;
 }
 
-bool BVH::intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const glm::vec3 &dir, float &t) {
+bool BVH::intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const glm::vec3 &dir, float &t,
+                            float &u, float &v) {
 
   glm::vec3 e1 = tri.v1 - tri.v0;
   glm::vec3 e2 = tri.v2 - tri.v0;
@@ -84,12 +85,12 @@ bool BVH::intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const 
 
   float f = 1.0f / a;
   glm::vec3 s = origin - tri.v0;
-  float u = f * glm::dot(s, h);
+  u = f * glm::dot(s, h);
   if (u < 0.0f || u > 1.0f)
     return false;
 
   glm::vec3 q = glm::cross(s, e1);
-  float v = f * glm::dot(dir, q);
+  v = f * glm::dot(dir, q);
   if (v < 0.0f || u + v > 1.0f)
     return false;
 
@@ -124,12 +125,13 @@ bool BVH::intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const 
     if (node.isLeaf()) {
       // test all triangles
       for (int i = node.triStart; i < node.triStart + node.triCount; i++) {
-        float t;
-        if (intersectTriangle(_tris[i], origin, dir, t)) {
+        float t, u, v;
+        if (intersectTriangle(_tris[i], origin, dir, t, u, v)) {
           if (t < result.t) {
             result.t = t;
             result.faceIdx = _tris[i].faceIdx;
             result.hitPoint = origin + dir * t;
+            result.bary = {1.f - u - v, u, v}; // w, u, v → v0, v1, v2
           }
         }
       }
@@ -152,43 +154,43 @@ ClosestPointResult BVH::closestPointOnTriangle(const glm::vec3 &p, const Triangl
   glm::vec3 ab = b - a, ac = c - a, ap = p - a;
   float d1 = glm::dot(ab, ap), d2 = glm::dot(ac, ap);
   if (d1 <= 0 && d2 <= 0)
-    return {a, {1, 0, 0}, tri.faceIdx, glm::dot(p - a, p - a)};
+    return {a, {1, 0, 0}, glm::dot(p - a, p - a), tri.faceIdx};
 
   glm::vec3 bp = p - b;
   float d3 = glm::dot(ab, bp), d4 = glm::dot(ac, bp);
   if (d3 >= 0 && d4 <= d3)
-    return {b, {0, 1, 0}, tri.faceIdx, glm::dot(p - b, p - b)};
+    return {b, {0, 1, 0}, glm::dot(p - b, p - b), tri.faceIdx};
 
   glm::vec3 cp = p - c;
   float d5 = glm::dot(ab, cp), d6 = glm::dot(ac, cp);
   if (d6 >= 0 && d5 <= d6)
-    return {c, {0, 0, 1}, tri.faceIdx, glm::dot(p - c, p - c)};
+    return {c, {0, 0, 1}, glm::dot(p - c, p - c), tri.faceIdx};
 
   float vc = d1 * d4 - d3 * d2;
   if (vc <= 0 && d1 >= 0 && d3 <= 0) {
     float v = d1 / (d1 - d3);
     glm::vec3 pt = a + v * ab;
-    return {pt, {1 - v, v, 0}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+    return {pt, {1 - v, v, 0}, glm::dot(p - pt, p - pt), tri.faceIdx};
   }
 
   float vb = d5 * d2 - d1 * d6;
   if (vb <= 0 && d2 >= 0 && d6 <= 0) {
     float w = d2 / (d2 - d6);
     glm::vec3 pt = a + w * ac;
-    return {pt, {1 - w, 0, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+    return {pt, {1 - w, 0, w}, glm::dot(p - pt, p - pt), tri.faceIdx};
   }
 
   float va = d3 * d6 - d5 * d4;
   if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
     float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
     glm::vec3 pt = b + w * (c - b);
-    return {pt, {0, 1 - w, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+    return {pt, {0, 1 - w, w}, glm::dot(p - pt, p - pt), tri.faceIdx};
   }
 
   float denom = 1.f / (va + vb + vc);
   float v = vb * denom, w = vc * denom;
   glm::vec3 pt = a + v * ab + w * ac;
-  return {pt, {1 - v - w, v, w}, tri.faceIdx, glm::dot(p - pt, p - pt)};
+  return {pt, {1 - v - w, v, w}, glm::dot(p - pt, p - pt), tri.faceIdx};
 }
 
 [[nodiscard]] ClosestPointResult BVH::closestPoint(const glm::vec3 &p) const {

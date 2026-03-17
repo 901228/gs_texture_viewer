@@ -13,7 +13,6 @@
 
 #include "../logger.hpp"
 #include "../utils.hpp"
-#include "hit_test.hpp"
 
 namespace {
 
@@ -38,35 +37,36 @@ namespace Mesh2Implicit {
 const glm::vec3 const project(const ClosestPointResult &r) { return r.point; }
 
 // give BVH::ClosestPointResult to avoid querying again
-const glm::vec3 const interpolateNormal(const ClosestPointResult &r, const MyMesh &mesh) {
+const glm::vec3 const interpolateNormal(int faceIdx, glm::vec3 bary, const MyMesh &mesh) {
 
   // guard: return fallback normal when faceIdx is invalid
-  if (r.faceIdx < 0 || r.faceIdx >= (int)mesh.n_faces()) {
+  if (faceIdx < 0 || faceIdx >= (int)mesh.n_faces()) {
     // this should not happen, add log to help locate
-    WARN("interpolateNormal: invalid faceIdx: {}", r.faceIdx);
+    WARN("interpolateNormal: invalid faceIdx: {}", faceIdx);
     return {0, 1, 0}; // fallback
   }
 
-  auto fh = mesh.face_handle(r.faceIdx);
+  auto fh = mesh.face_handle(faceIdx);
   auto fv = mesh.cfv_iter(fh);
   glm::vec3 na = Utils::toGlm(mesh.normal(*fv));
   ++fv;
   glm::vec3 nb = Utils::toGlm(mesh.normal(*fv));
   ++fv;
   glm::vec3 nc = Utils::toGlm(mesh.normal(*fv));
-  return glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
+  return glm::normalize(Utils::barycentric(bary, na, nb, nc));
 }
 
 // n(x) — interpolated normal at projected point
-const glm::vec3 const normal(const ClosestPointResult &r, const MyMesh &mesh) {
-  return interpolateNormal(r, mesh);
+const glm::vec3 const normal(int faceIdx, glm::vec3 bary, const MyMesh &mesh) {
+  return interpolateNormal(faceIdx, bary, mesh);
 }
 
 // f(x) — signed distance to surface
 // use unsigned closest-point distance & normal direction to determine sign
-const float f(const glm::vec3 &x, const ClosestPointResult &r, const MyMesh &mesh) {
-  glm::vec3 n = interpolateNormal(r, mesh);
-  glm::vec3 diff = x - r.point;
+const float f(const glm::vec3 &x, const glm::vec3 point, int faceIdx, const glm::vec3 &bary,
+              const MyMesh &mesh) {
+  glm::vec3 n = interpolateNormal(faceIdx, bary, mesh);
+  glm::vec3 diff = x - point;
   float sign = (glm::dot(diff, n) >= 0) ? 1.f : -1.f;
   return sign * glm::length(diff);
 }
@@ -116,7 +116,7 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
     // Check if full remaining step is OK
     float ell = remaining;
     auto r_full = bvh.closestPoint(q + remaining * t);
-    glm::vec3 n_full = Mesh2Implicit::normal(r_full, mesh);
+    glm::vec3 n_full = Mesh2Implicit::normal(r_full.faceIdx, r_full.bary, mesh);
 
     if (glm::dot(n, n_full) < s) {
       // Bisect to find safe ell
@@ -125,7 +125,7 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
       for (int iter = 0; iter < 32 && (hi - lo) > tol; ++iter) {
         float mid = 0.5f * (lo + hi);
         auto r_mid = bvh.closestPoint(q + mid * t);
-        glm::vec3 n_mid = Mesh2Implicit::normal(r_mid, mesh);
+        glm::vec3 n_mid = Mesh2Implicit::normal(r_mid.faceIdx, r_mid.bary, mesh);
         if (glm::dot(n, n_mid) >= s)
           lo = mid;
         else
@@ -141,7 +141,7 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
       break;
 
     glm::vec3 q_next = r_next.point;
-    glm::vec3 n_next = Mesh2Implicit::normal(r_next, mesh);
+    glm::vec3 n_next = Mesh2Implicit::normal(r_next.faceIdx, r_next.bary, mesh);
 
     float step_dist = glm::distance(q, q_next);
     if (step_dist < min_step)
@@ -473,7 +473,8 @@ struct LogMapTable {
 
 namespace GeodesicSplines {
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh) {
+void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh,
+           HitResult hitResult) {
 
   Timer t("Geodesic Splines Solve");
 
@@ -487,24 +488,34 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
   {
     Timer t("Pre-Processing");
 
+    int faceIdx = -1;
+    glm::vec3 bary{1, 0, 0};
+
     // 1a. Calculate the center of selected faces as the origin
-    int count = 0;
-    for (unsigned int f : selectedID) {
-      MyMesh::FaceHandle fh = originMesh.face_handle(f);
-      for (const MyMesh::VertexHandle &fv : originMesh.fv_range(fh)) {
-        p += Utils::toGlm(originMesh.point(fv));
-        count++;
+    if (hitResult.faceIdx >= 0 && selectedID.contains(hitResult.faceIdx) &&
+        originMesh.face_handle(hitResult.faceIdx).is_valid()) {
+      p = hitResult.hitPoint;
+    } else {
+      int count = 0;
+      for (unsigned int f : selectedID) {
+        MyMesh::FaceHandle fh = originMesh.face_handle(f);
+        for (const MyMesh::VertexHandle &fv : originMesh.fv_range(fh)) {
+          p += Utils::toGlm(originMesh.point(fv));
+          count++;
+        }
       }
+      p /= float(count);
     }
-    p /= float(count);
 
     // 1b. Project p to the surface of the mesh (the center is not necessarily on the surface)
     auto r = bvh.closestPoint(p);
     p = r.point;
     debugStruct.center = p;
+    faceIdx = r.faceIdx;
+    bary = r.bary;
 
     // 1c. construct tangent frame (e1, e2) at p
-    glm::vec3 n0 = Mesh2Implicit::normal(r, originMesh);
+    glm::vec3 n0 = Mesh2Implicit::normal(faceIdx, bary, originMesh);
     glm::vec3 arb = (std::abs(n0.x) < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
     e1 = glm::normalize(arb - glm::dot(arb, n0) * n0);
     e2 = glm::cross(n0, e1);
@@ -526,7 +537,7 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
       float angle = 2.f * std::numbers::pi_v<float> * i / settings.m;
       glm::vec3 t = std::cos(angle) * e1 + std::sin(angle) * e2;
       auto r0 = bvh.closestPoint(p);
-      glm::vec3 n0 = Mesh2Implicit::normal(r0, originMesh);
+      glm::vec3 n0 = Mesh2Implicit::normal(r0.faceIdx, r0.bary, originMesh);
       Q[i][0] = {p, t, n0, r0.faceIdx};
       debugStruct.Q.push_back({});
       debugStruct.T.push_back({});
@@ -553,7 +564,7 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
           tp_next.pos = r.point;
           tp_next.faceIdx = r.faceIdx;
 
-          tp_next.normal = Mesh2Implicit::normal(bvh.closestPoint(tp_next.pos), originMesh);
+          tp_next.normal = Mesh2Implicit::normal(r.faceIdx, r.bary, originMesh);
           tp_next.tangent = RadialTracing::parallelTransport(tp_cur.tangent, tp_cur.normal, tp_next.normal);
         } else {
 
@@ -570,22 +581,24 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
         debugStruct.T[i].push_back(tp_next.tangent);
       });
 
-      bool dirty = false;
-      for (int i = 0; i < settings.m; ++i) {
-        const int &faceIdx = Q[i][j + 1].faceIdx;
-        if (faceIdx == -1 || selectedID.contains(faceIdx)) {
-          dirty = true;
+      if (j > 1) {
+        bool dirty = false;
+        for (int i = 0; i < settings.m; ++i) {
+          const int &faceIdx = Q[i][j + 1].faceIdx;
+          if (faceIdx == -1 || selectedID.contains(faceIdx)) {
+            dirty = true;
+            break;
+          }
+        }
+        if (!dirty) {
+          N = j;
+          for (int i = 0; i < settings.m; i++) {
+            Q[i][j + 1] = {};
+            debugStruct.Q[i].pop_back();
+            debugStruct.T[i].pop_back();
+          }
           break;
         }
-      }
-      if (!dirty) {
-        N = j;
-        for (int i = 0; i < settings.m; i++) {
-          Q[i][j + 1] = {};
-          debugStruct.Q[i].pop_back();
-          debugStruct.T[i].pop_back();
-        }
-        break;
       }
 
       // =========================================

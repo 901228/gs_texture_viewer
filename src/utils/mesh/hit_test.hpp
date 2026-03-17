@@ -7,9 +7,10 @@
 #include "mesh.hpp"
 
 struct HitResult {
+  glm::vec3 hitPoint{};
+  glm::vec3 bary{};
   float t = 1e9f;
   int faceIdx = -1;
-  glm::vec3 hitPoint{};
 };
 
 /**
@@ -19,8 +20,8 @@ struct HitResult {
 struct ClosestPointResult {
   glm::vec3 point{};
   glm::vec3 bary{}; // barycentric (u, v, w), u+v+w=1
-  int faceIdx = -1;
   float dist2 = 1e18f;
+  int faceIdx = -1;
 };
 
 namespace BVH {
@@ -91,7 +92,8 @@ private:
   int buildRecursive(int start, int count, int depth = 0);
 
   // Möller–Trumbore
-  static bool intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const glm::vec3 &dir, float &t);
+  static bool intersectTriangle(const Triangle &tri, const glm::vec3 &origin, const glm::vec3 &dir, float &t,
+                                float &u, float &v);
 
 public:
   // closest point on mesh

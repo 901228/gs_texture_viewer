@@ -375,9 +375,9 @@ void TextureGaussianModel::clearSelect() {
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }
 
-void TextureGaussianModel::calculateParameterization(SolveUV::SolvingMode solvingMode) {
+void TextureGaussianModel::calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult) {
 
-  Model::calculateParameterization(solvingMode);
+  Model::calculateParameterization(solvingMode, hitResult);
 
   for (AppearancePoint &point : _appearancePoints | std::ranges::views::filter([this](const auto &i) {
                                   return _selectedID->contains(i.faceId);

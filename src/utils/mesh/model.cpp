@@ -302,11 +302,11 @@ bool Model::selectRadius(int id, int radius, bool isAdd) {
 
 void Model::clearSelect() { _selectedID->clear(); }
 
-void Model::calculateParameterization(SolveUV::SolvingMode solvingMode) {
+void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult) {
   if (_selectedID->empty())
     return;
 
-  SolveUV::Solve(solvingMode, *_selectedID, _mesh, _bvh);
+  SolveUV::Solve(solvingMode, *_selectedID, _mesh, _bvh, hitResult);
   updateTexcoordVAO();
 }
 

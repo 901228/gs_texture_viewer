@@ -12,17 +12,12 @@
 namespace GeodesicSplines {
 
 struct Settings {
-  const int m; // radial curves
-  int n;       // steps
-  float h;     // step size
-  bool useSubSteppedProject;
-  bool enableSmoothing;
-  const float kappa; // smoothing parameter
-
-  Settings(int m = 50, int n = 40, float h = 0.01f, bool useSubSteppedProject = true,
-           bool enableSmoothing = true, float kappa = 1e3f)
-      : m(m), n(n), h(h), useSubSteppedProject(useSubSteppedProject), enableSmoothing(enableSmoothing),
-        kappa(kappa) {}
+  int m = 50;      // radial curves
+  int n = 40;      // steps
+  float h = 0.01f; // step size
+  bool useSubSteppedProject = true;
+  bool enableSmoothing = true;
+  const float kappa = 1e3f; // smoothing parameter
 };
 inline Settings settings;
 
@@ -111,7 +106,8 @@ private:
 };
 inline DebugStruct debugStruct;
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh);
+void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh,
+           HitResult hitResult);
 
 } // namespace GeodesicSplines
 

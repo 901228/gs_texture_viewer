@@ -16,7 +16,7 @@ namespace SolveUV {
 enum class SolvingMode : int { Harmonics, ExpMap, GeodesicSplines };
 
 inline void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID,
-                  MyMesh &originMesh, const BVH::BVH &bvh) {
+                  MyMesh &originMesh, const BVH::BVH &bvh, HitResult hitResult = {}) {
   switch (mode) {
   case SolvingMode::Harmonics:
     Harmonics::Solve(selectedID, originMesh);
@@ -25,7 +25,7 @@ inline void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int
     ExpMap::Solve(selectedID, originMesh);
     break;
   case SolvingMode::GeodesicSplines:
-    GeodesicSplines::Solve(selectedID, originMesh, bvh);
+    GeodesicSplines::Solve(selectedID, originMesh, bvh, hitResult);
     break;
   default:
     throw std::runtime_error("Unknown solving mode!");

@@ -104,18 +104,31 @@ void TextureEditor::renderList() {
 
 void TextureEditor::controls() {
 
+  ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_selectMode),
+               Utils::enumToImGuiCombo<SelectMode>().c_str());
+  ImGui::NewLine();
+
   ImGui::SeparatorText("Brush Options");
   {
     ImGui::SliderInt("Brush Size", &_brushRadius, 1, 60);
-    if (ImGui::Button("Clear Selection", {ImGui::GetContentRegionAvail().x, 0})) {
-      _model.clearSelect();
+
+    ImGui::BeginDisabled(_selectMode != SelectMode::Faces);
+    {
+      if (ImGui::Button("Clear Selection", {ImGui::GetContentRegionAvail().x, 0})) {
+        _model.clearSelect();
+      }
     }
+    ImGui::EndDisabled();
   }
   ImGui::NewLine();
 
   ImGui::SeparatorText("Solving Texture Coords");
   {
-    ImGui::Checkbox("Auto Solve Texture Coords", &_autoCalculate);
+    ImGui::BeginDisabled(_selectMode != SelectMode::Faces);
+    {
+      ImGui::Checkbox("Auto Solve Texture Coords", &_autoCalculate);
+    }
+    ImGui::EndDisabled();
 
     ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
                  Utils::enumToImGuiCombo<SolveUV::SolvingMode>().c_str());
@@ -134,7 +147,7 @@ void TextureEditor::controls() {
     }
 
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-      _model.calculateParameterization(_solvingMode);
+      _model.calculateParameterization(_solvingMode, _hitResult);
       _solved = true;
     }
   }
@@ -147,7 +160,7 @@ void TextureEditor::controls() {
 
     if (_autoCalculate && !_solved) {
 
-      _model.calculateParameterization(_solvingMode);
+      _model.calculateParameterization(_solvingMode, _hitResult);
       _solved = true;
     }
 
@@ -304,23 +317,33 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
   // TODO: display brush shadow
   if (ImGui::IsWindowHovered()) {
 
+    glm::vec2 windowPos = Utils::toGlm(ImGui::GetWindowPos());
+    glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
+    glm::vec2 mousePosInWindow = mousePos - windowPos;
+    auto hitResult = _model.select(camera, width, height, mousePosInWindow);
+    if (hitResult.faceIdx < 0 || hitResult.faceIdx >= _model.n_faces())
+      return;
+
+    if (_selectMode == SelectMode::Point) {
+      _hitResult = hitResult;
+    }
     bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
 
     // handle select mesh face
-    if (isLeftDown || isRightDown) {
+    if (_selectMode == SelectMode::Faces && (isLeftDown || isRightDown)) {
 
-      glm::vec2 windowPos = Utils::toGlm(ImGui::GetWindowPos());
-      glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
-      glm::vec2 mousePosInWindow = mousePos - windowPos;
-      auto [minT, selectedID, hitPos] = _model.select(camera, width, height, mousePosInWindow);
-      // TODO: use hit pos to set the center for solving UV (Expmap, GeodesicSplines)
+      bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+      if (dirty) {
+        _model.updateTexId(*this);
+      }
+    } else if (_selectMode == SelectMode::Point && isLeftDown) {
 
-      if (selectedID >= 0 && selectedID < _model.n_faces()) {
-        bool dirty = _model.selectRadius(selectedID, _brushRadius - 1, isLeftDown);
-        if (dirty) {
-          _model.updateTexId(*this);
-        }
+      // TODO: drag texture moving
+      _model.clearSelect();
+      bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+      if (dirty) {
+        _model.updateTexId(*this);
       }
     }
 

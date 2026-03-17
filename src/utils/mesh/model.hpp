@@ -84,7 +84,7 @@ public:
   virtual void clearSelect();
   virtual bool selectRadius(int id, int radius, bool isAdd);
 
-  virtual void calculateParameterization(SolveUV::SolvingMode solvingMode);
+  virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult);
 
   [[nodiscard]] inline const std::unordered_set<unsigned int> &selectedID() const { return *_selectedID; }
   std::vector<TextureLine> getSelectedTextureLines();

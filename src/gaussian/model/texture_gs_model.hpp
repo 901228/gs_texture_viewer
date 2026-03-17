@@ -46,7 +46,7 @@ public:
   bool selectRadius(int id, int radius, bool isAdd) override;
   void updateData();
   void clearSelect() override;
-  void calculateParameterization(SolveUV::SolvingMode solvingMode) override;
+  void calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult) override;
 
   [[nodiscard]] std::vector<std::pair<unsigned int, std::pair<float, float>>>
   getSelectedTextureCoords() const override;

@@ -39,8 +39,13 @@ private:
   Model &_model;
 
 private:
+  enum class SelectMode : int { Faces, Point };
+  SelectMode _selectMode = SelectMode::Point;
+
+private:
   // brush and solving
   int _brushRadius = 10;
+  HitResult _hitResult{};
 
   SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::GeodesicSplines;
   bool _solved = false;
