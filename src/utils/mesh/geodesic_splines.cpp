@@ -1,4 +1,5 @@
 #include "geodesic_splines.hpp"
+#include "solve_uv.hpp"
 
 #include <chrono>
 #include <execution>
@@ -670,19 +671,40 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
         originMesh.set_texture_index(fh, -1);
     }
 
-    // 寫入 UV
+    // write uv
     originMesh.request_halfedge_texcoords2D();
     for (auto vh : originMesh.vertices()) {
       glm::vec3 vpos = Utils::toGlm(originMesh.point(vh));
       glm::vec2 uv = logMap.query(vpos);
 
-      // 正規化到 [0, 1]（OpenMesh UV 慣例）
+      // normalize to [0, 1]
       float R = N * settings.h;
-      uv = uv / (2.f * R) + glm::vec2(0.5f);
-      // uv = glm::clamp(uv, 0.f, 1.f);
+      glm::vec2 uvNorm = uv / (2.f * R) + glm::vec2(0.5f);
+      originMesh.set_texcoord2D(vh, {uvNorm.x, uvNorm.y});
 
-      originMesh.set_texcoord2D(vh, {uv.x, uv.y});
+      // // Tangent/Bitangent: finite differences on UV
+      // float eps = R * 0.02f; // about 2% of map radius
+
+      // // +u
+      // glm::vec2 uv_du = uv + glm::vec2(eps, 0.f);
+      // float r_du = glm::length(uv_du);
+      // float theta_du = std::atan2(uv_du.y, uv_du.x);
+      // glm::vec3 pt_du = MapInterpolation::forwardMap(r_du, theta_du, isolineSplines, N, settings.h, p);
+
+      // // +v
+      // glm::vec2 uv_dv = uv + glm::vec2(0.f, eps);
+      // float r_dv = glm::length(uv_dv);
+      // float theta_dv = std::atan2(uv_dv.y, uv_dv.x);
+      // glm::vec3 pt_dv = MapInterpolation::forwardMap(r_dv, theta_dv, isolineSplines, N, settings.h, p);
+
+      // glm::vec3 tangent = glm::normalize(pt_du - vpos);
+      // glm::vec3 bitangent = glm::normalize(pt_dv - vpos);
+
+      // originMesh.data(vh).tangent = {tangent.x, tangent.y, tangent.z};
+      // originMesh.data(vh).bitangent = {bitangent.x, bitangent.y, bitangent.z};
     }
+
+    SolveUV::calculateTB(originMesh);
   }
 }
 
