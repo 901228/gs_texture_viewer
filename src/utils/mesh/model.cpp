@@ -302,11 +302,11 @@ bool Model::selectRadius(int id, int radius, bool isAdd) {
 
 void Model::clearSelect() { _selectedID->clear(); }
 
-void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult) {
+void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, const HitResult &hitResult) {
   if (_selectedID->empty())
     return;
 
-  SolveUV::Solve(solvingMode, *_selectedID, _mesh, _bvh, hitResult);
+  SolveUV::Solve(solvingMode, *_selectedID, *this, hitResult);
   updateTexcoordVAO();
 }
 
@@ -411,4 +411,52 @@ std::vector<std::pair<unsigned int, std::pair<float, float>>> Model::getSelected
   }
 
   return result;
+}
+
+const ClosestPointResult Model::_closestPoint(const glm::vec3 &x) {
+
+  return _bvh.closestPoint(x);
+
+  std::optional<ClosestPointResult> cache = _cache.get(x);
+  if (!cache.has_value()) {
+    cache = _bvh.closestPoint(x);
+    _cache.put(x, cache.value());
+  }
+  return cache.value();
+}
+
+// const float Model::eval(const glm::vec3 &x) {
+//   auto r = _closestPoint(x);
+
+//   glm::vec3 n = normal(x);
+//   glm::vec3 diff = x - r.point;
+//   float sign = (glm::dot(diff, n) >= 0) ? 1.f : -1.f;
+//   return sign * glm::length(diff);
+// }
+
+// const glm::vec3 Model::grad(const glm::vec3 &x) {}
+
+const glm::vec3 Model::project(const glm::vec3 &x) {
+  auto r = _closestPoint(x);
+  return r.point;
+}
+
+const glm::vec3 Model::normal(const glm::vec3 &x) {
+  auto r = _closestPoint(x);
+
+  // guard: return fallback normal when faceIdx is invalid
+  if (r.faceIdx < 0 || r.faceIdx >= (int)_mesh.n_faces()) {
+    // this should not happen, add log to help locate
+    WARN("interpolateNormal: invalid faceIdx: {}", r.faceIdx);
+    return {0, 1, 0}; // fallback
+  }
+
+  auto fh = _mesh.face_handle(r.faceIdx);
+  auto fv = _mesh.cfv_iter(fh);
+  glm::vec3 na = Utils::toGlm(_mesh.normal(*fv));
+  ++fv;
+  glm::vec3 nb = Utils::toGlm(_mesh.normal(*fv));
+  ++fv;
+  glm::vec3 nc = Utils::toGlm(_mesh.normal(*fv));
+  return glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
 }

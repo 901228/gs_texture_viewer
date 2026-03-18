@@ -7,13 +7,27 @@
 #include <ImGui/imgui.h>
 
 #include "hit_test.hpp"
-#include "mesh.hpp"
 
 namespace GeodesicSplines {
 
+class Implicit {
+public:
+  // f(x) = σ(x) - threshold -> signed distance to surface
+  // virtual const float eval(const glm::vec3 &x) = 0;
+
+  // ∇f(x)
+  // virtual const glm::vec3 grad(const glm::vec3 &x) = 0;
+
+  // π(x) -> project onto surface
+  virtual const glm::vec3 project(const glm::vec3 &x) = 0;
+
+  // n(x) = normalize(-∇f) -> interpolated normal at projected point
+  virtual const glm::vec3 normal(const glm::vec3 &x) = 0;
+};
+
 struct Settings {
   int m = 50;      // radial curves
-  int n = 40;      // steps
+  int n = 100;      // steps
   float h = 0.01f; // step size
   bool useSubSteppedProject = true;
   bool enableSmoothing = true;
@@ -35,7 +49,7 @@ struct DebugStruct {
 
     auto [show, p] = project(center, projview, width, height);
     if (show) {
-      drawList->AddCircleFilled(pos + p, 8.f, IM_COL32(0, 255, 150, 255));
+      drawList->AddCircleFilled(pos + p, 4.f, IM_COL32(0, 255, 150, 255));
     }
 
     // for (const auto &qm : Q) {
@@ -77,7 +91,7 @@ struct DebugStruct {
         auto [show0, p0] = project(curve[j], projview, width, height);
         auto [show1, p1] = project(end3d, projview, width, height);
         if (show0 && show1)
-          drawList->AddLine(pos + p0, pos + p1, color, 1.f);
+          drawList->AddLine(pos + p0, pos + p1, color, 2.f);
       }
     }
   }
@@ -106,8 +120,8 @@ private:
 };
 inline DebugStruct debugStruct;
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh,
-           HitResult hitResult);
+void Solve(const std::unordered_set<unsigned int> &selectedID, glm::vec3 center, Implicit &model,
+           MyMesh &mesh, HitResult hitResult);
 
 } // namespace GeodesicSplines
 

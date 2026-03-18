@@ -10,6 +10,7 @@
 #include "../utils.hpp"
 #include "texture.hpp"
 #include "utils/mesh/geodesic_splines.hpp"
+#include "utils/mesh/hit_test.hpp"
 #include "utils/mesh/solve_uv.hpp"
 
 TextureEditor::TextureEditor(Model &model, bool isPBR, const std::string_view textureListPath,
@@ -137,6 +138,7 @@ void TextureEditor::controls() {
 
       if (ImGui::CollapsingHeader("Geodesic Splines")) {
 
+        ImGui::SliderInt("m (lines)", &GeodesicSplines::settings.m, 40, 100);
         ImGui::SliderInt("n (step)", &GeodesicSplines::settings.n, 20, 300);
         ImGui::SliderFloat("h (step size)", &GeodesicSplines::settings.h, 0.01f, 0.1f, "%.2f");
         ImGui::Checkbox("Use Sub-Stepped Project", &GeodesicSplines::settings.useSubSteppedProject);
@@ -147,7 +149,8 @@ void TextureEditor::controls() {
     }
 
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-      _model.calculateParameterization(_solvingMode, _hitResult);
+      _model.calculateParameterization(_solvingMode,
+                                       _selectMode == SelectMode::Point ? _hitResult : HitResult());
       _solved = true;
     }
   }
@@ -160,7 +163,8 @@ void TextureEditor::controls() {
 
     if (_autoCalculate && !_solved) {
 
-      _model.calculateParameterization(_solvingMode, _hitResult);
+      _model.calculateParameterization(_solvingMode,
+                                       _selectMode == SelectMode::Point ? _hitResult : HitResult());
       _solved = true;
     }
 
@@ -324,26 +328,25 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
     if (hitResult.faceIdx < 0 || hitResult.faceIdx >= _model.n_faces())
       return;
 
-    if (_selectMode == SelectMode::Point) {
-      _hitResult = hitResult;
-    }
     bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (isLeftDown || isRightDown) {
+      _hitResult = hitResult;
 
-    // handle select mesh face
-    if (_selectMode == SelectMode::Faces && (isLeftDown || isRightDown)) {
+      // handle select mesh face
+      if (_selectMode == SelectMode::Faces) {
 
-      bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
-      if (dirty) {
-        _model.updateTexId(*this);
-      }
-    } else if (_selectMode == SelectMode::Point && isLeftDown) {
+        bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+        if (dirty) {
+          _model.updateTexId(*this);
+        }
+      } else if (_selectMode == SelectMode::Point) {
 
-      // TODO: drag texture moving
-      _model.clearSelect();
-      bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
-      if (dirty) {
-        _model.updateTexId(*this);
+        _model.clearSelect();
+        bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+        if (dirty) {
+          _model.updateTexId(*this);
+        }
       }
     }
 

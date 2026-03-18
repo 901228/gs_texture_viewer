@@ -11,8 +11,10 @@
 
 #include <IconsFont/IconsLucide.h>
 
+#include "../cache.hpp"
 #include "../gl/program.hpp"
 #include "../texture/texture.hpp"
+#include "geodesic_splines.hpp"
 #include "hit_test.hpp"
 #include "mesh.hpp"
 #include "solve_uv.hpp"
@@ -28,7 +30,7 @@ namespace Light {
 static constexpr const char *icon = ICON_LC_LIGHTBULB;
 }
 
-class Model {
+class Model : public GeodesicSplines::Implicit {
 public:
   explicit Model();
   explicit Model(const char *path);
@@ -38,6 +40,9 @@ public:
 
 protected:
   MyMesh _mesh;
+
+public:
+  MyMesh &mesh() { return _mesh; }
 
 protected:
   std::unique_ptr<Program> _renderingProgram;
@@ -75,8 +80,10 @@ public:
 protected:
   std::unique_ptr<std::unordered_set<unsigned int>> _selectedID;
 
-public:
+protected:
   BVH::BVH _bvh;
+
+public:
   [[nodiscard]] HitResult select(const Camera &camera, float width, float height,
                                  const glm::vec2 &mousePos) const;
 
@@ -84,7 +91,7 @@ public:
   virtual void clearSelect();
   virtual bool selectRadius(int id, int radius, bool isAdd);
 
-  virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult);
+  virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, const HitResult &hitResult);
 
   [[nodiscard]] inline const std::unordered_set<unsigned int> &selectedID() const { return *_selectedID; }
   std::vector<TextureLine> getSelectedTextureLines();
@@ -110,6 +117,25 @@ protected:
 public:
   [[nodiscard]] inline int tessLevel() const { return _tessLevel; }
   inline void setTessLevel(int level) { _tessLevel = std::clamp(level, 1, GL_MAX_TESS_GEN_LEVEL); }
+
+private:
+  struct GlmHash {
+    size_t operator()(const glm::vec3 &p) const {
+      size_t seed = 0;
+      Cache::hash_combine(seed, p.x);
+      Cache::hash_combine(seed, p.y);
+      return seed;
+    }
+  };
+
+  Cache::LRUCache<glm::vec3, ClosestPointResult, GlmHash> _cache{20};
+  const ClosestPointResult _closestPoint(const glm::vec3 &x);
+
+public:
+  // const float eval(const glm::vec3 &x) override;
+  // const glm::vec3 grad(const glm::vec3 &x) override;
+  const glm::vec3 project(const glm::vec3 &x) override;
+  const glm::vec3 normal(const glm::vec3 &x) override;
 };
 
 #endif // !MODEL_HPP

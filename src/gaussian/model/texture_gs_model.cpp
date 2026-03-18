@@ -375,7 +375,8 @@ void TextureGaussianModel::clearSelect() {
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }
 
-void TextureGaussianModel::calculateParameterization(SolveUV::SolvingMode solvingMode, HitResult hitResult) {
+void TextureGaussianModel::calculateParameterization(SolveUV::SolvingMode solvingMode,
+                                                     const HitResult &hitResult) {
 
   Model::calculateParameterization(solvingMode, hitResult);
 

@@ -2,6 +2,7 @@
 #define UTILS_HPP
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -120,6 +121,23 @@ inline const std::string getShaderPath(const std::string &shaderName = "") {
 }
 
 } // namespace Path
+
+namespace Timer {
+
+struct Timer {
+  std::string name;
+  std::chrono::high_resolution_clock::time_point start;
+
+  Timer(const std::string &name) : name(name) { start = std::chrono::high_resolution_clock::now(); }
+
+  ~Timer() {
+    auto end = std::chrono::high_resolution_clock::now();
+    float ms = std::chrono::duration<float, std::milli>(end - start).count();
+    DEBUG("[Timer] {}: {} ms", name.c_str(), ms);
+  }
+};
+
+} // namespace Timer
 
 } // namespace Utils
 

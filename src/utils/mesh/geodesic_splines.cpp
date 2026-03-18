@@ -1,7 +1,8 @@
 #include "geodesic_splines.hpp"
 #include "solve_uv.hpp"
+#include "utils/mesh/geodesic_splines.hpp"
+#include "utils/mesh/mesh.hpp"
 
-#include <chrono>
 #include <execution>
 #include <numbers>
 #include <random>
@@ -12,67 +13,7 @@
 
 #include <Eigen/Sparse>
 
-#include "../logger.hpp"
 #include "../utils.hpp"
-
-namespace {
-
-struct Timer {
-  std::string name;
-  std::chrono::high_resolution_clock::time_point start;
-
-  Timer(const std::string &name) : name(name) { start = std::chrono::high_resolution_clock::now(); }
-
-  ~Timer() {
-    auto end = std::chrono::high_resolution_clock::now();
-    float ms = std::chrono::duration<float, std::milli>(end - start).count();
-    DEBUG("[Timer] {}: {} ms", name.c_str(), ms);
-  }
-};
-
-} // namespace
-
-namespace Mesh2Implicit {
-
-// π(x) — project onto surface
-const glm::vec3 const project(const ClosestPointResult &r) { return r.point; }
-
-// give BVH::ClosestPointResult to avoid querying again
-const glm::vec3 const interpolateNormal(int faceIdx, glm::vec3 bary, const MyMesh &mesh) {
-
-  // guard: return fallback normal when faceIdx is invalid
-  if (faceIdx < 0 || faceIdx >= (int)mesh.n_faces()) {
-    // this should not happen, add log to help locate
-    WARN("interpolateNormal: invalid faceIdx: {}", faceIdx);
-    return {0, 1, 0}; // fallback
-  }
-
-  auto fh = mesh.face_handle(faceIdx);
-  auto fv = mesh.cfv_iter(fh);
-  glm::vec3 na = Utils::toGlm(mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nb = Utils::toGlm(mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nc = Utils::toGlm(mesh.normal(*fv));
-  return glm::normalize(Utils::barycentric(bary, na, nb, nc));
-}
-
-// n(x) — interpolated normal at projected point
-const glm::vec3 const normal(int faceIdx, glm::vec3 bary, const MyMesh &mesh) {
-  return interpolateNormal(faceIdx, bary, mesh);
-}
-
-// f(x) — signed distance to surface
-// use unsigned closest-point distance & normal direction to determine sign
-const float f(const glm::vec3 &x, const glm::vec3 point, int faceIdx, const glm::vec3 &bary,
-              const MyMesh &mesh) {
-  glm::vec3 n = interpolateNormal(faceIdx, bary, mesh);
-  glm::vec3 diff = x - point;
-  float sign = (glm::dot(diff, n) >= 0) ? 1.f : -1.f;
-  return sign * glm::length(diff);
-}
-
-} // namespace Mesh2Implicit
 
 namespace RadialTracing {
 
@@ -80,7 +21,6 @@ struct TracedPoint {
   glm::vec3 pos;     // 3D position on mesh
   glm::vec3 tangent; // parallel transported tangent (unit, in tangent plane)
   glm::vec3 normal;  // interpolated normal at pos
-  int faceIdx;       // corresponding face index
 };
 
 // smallest rotation between tangent planes
@@ -100,8 +40,8 @@ const glm::vec3 const parallelTransport(const glm::vec3 &t, const glm::vec3 &n_f
   return glm::normalize(result);
 }
 
-const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, const BVH::BVH &bvh,
-                                          const MyMesh &mesh) {
+const std::pair<bool, TracedPoint> const substeppedProject(const TracedPoint &tp_start, float h,
+                                                           GeodesicSplines::Implicit &model) {
 
   const float s = 1.f / std::sqrt(2.f); // cos(45°)
   const float min_step = 1e-6f;
@@ -109,15 +49,14 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
   glm::vec3 q = tp_start.pos;
   glm::vec3 t = tp_start.tangent;
   glm::vec3 n = tp_start.normal;
-  int faceIdx = -1;
+  bool found = false;
   float remaining = h;
 
   while (remaining > min_step) {
 
     // Check if full remaining step is OK
     float ell = remaining;
-    auto r_full = bvh.closestPoint(q + remaining * t);
-    glm::vec3 n_full = Mesh2Implicit::normal(r_full.faceIdx, r_full.bary, mesh);
+    glm::vec3 n_full = model.normal(q + remaining * t);
 
     if (glm::dot(n, n_full) < s) {
       // Bisect to find safe ell
@@ -125,8 +64,7 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
       float tol = remaining * 1e-3f; // stop when remaining is less than 0.1% of h
       for (int iter = 0; iter < 32 && (hi - lo) > tol; ++iter) {
         float mid = 0.5f * (lo + hi);
-        auto r_mid = bvh.closestPoint(q + mid * t);
-        glm::vec3 n_mid = Mesh2Implicit::normal(r_mid.faceIdx, r_mid.bary, mesh);
+        glm::vec3 n_mid = model.normal(q + mid * t);
         if (glm::dot(n, n_mid) >= s)
           lo = mid;
         else
@@ -135,14 +73,9 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
       ell = lo;
     }
 
-    auto r_next = bvh.closestPoint(q + ell * t);
-
-    // ell is too small, the point has not moved, terminate
-    if (r_next.faceIdx < 0)
-      break;
-
-    glm::vec3 q_next = r_next.point;
-    glm::vec3 n_next = Mesh2Implicit::normal(r_next.faceIdx, r_next.bary, mesh);
+    glm::vec3 x_next = q + ell * t;
+    glm::vec3 q_next = model.project(x_next);
+    glm::vec3 n_next = model.normal(x_next);
 
     float step_dist = glm::distance(q, q_next);
     if (step_dist < min_step)
@@ -151,11 +84,11 @@ const TracedPoint const substeppedProject(const TracedPoint &tp_start, float h, 
     t = parallelTransport(t, n, n_next);
     q = q_next;
     n = n_next;
-    faceIdx = r_next.faceIdx;
+    found = true;
     remaining -= step_dist;
   }
 
-  return TracedPoint{q, t, n, faceIdx};
+  return std::make_pair(found, TracedPoint{q, t, n});
 }
 
 } // namespace RadialTracing
@@ -474,10 +407,10 @@ struct LogMapTable {
 
 namespace GeodesicSplines {
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMesh, const BVH::BVH &bvh,
-           HitResult hitResult) {
+void Solve(const std::unordered_set<unsigned int> &selectedID, glm::vec3 center, Implicit &model,
+           MyMesh &mesh, HitResult hitResult) {
 
-  Timer t("Geodesic Splines Solve");
+  Utils::Timer::Timer t("Geodesic Splines Solve");
 
   debugStruct.h = settings.h;
 
@@ -487,36 +420,14 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
   glm::vec3 p(0);
   glm::vec3 e1, e2;
   {
-    Timer t("Pre-Processing");
-
-    int faceIdx = -1;
-    glm::vec3 bary{1, 0, 0};
-
-    // 1a. Calculate the center of selected faces as the origin
-    if (hitResult.faceIdx >= 0 && selectedID.contains(hitResult.faceIdx) &&
-        originMesh.face_handle(hitResult.faceIdx).is_valid()) {
-      p = hitResult.hitPoint;
-    } else {
-      int count = 0;
-      for (unsigned int f : selectedID) {
-        MyMesh::FaceHandle fh = originMesh.face_handle(f);
-        for (const MyMesh::VertexHandle &fv : originMesh.fv_range(fh)) {
-          p += Utils::toGlm(originMesh.point(fv));
-          count++;
-        }
-      }
-      p /= float(count);
-    }
+    Utils::Timer::Timer t("Pre-Processing");
 
     // 1b. Project p to the surface of the mesh (the center is not necessarily on the surface)
-    auto r = bvh.closestPoint(p);
-    p = r.point;
+    p = model.project(center);
     debugStruct.center = p;
-    faceIdx = r.faceIdx;
-    bary = r.bary;
 
     // 1c. construct tangent frame (e1, e2) at p
-    glm::vec3 n0 = Mesh2Implicit::normal(faceIdx, bary, originMesh);
+    glm::vec3 n0 = model.normal(center);
     glm::vec3 arb = (std::abs(n0.x) < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
     e1 = glm::normalize(arb - glm::dot(arb, n0) * n0);
     e2 = glm::cross(n0, e1);
@@ -530,16 +441,15 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
   std::vector<std::vector<RadialTracing::TracedPoint>> Q(settings.m,
                                                          std::vector<RadialTracing::TracedPoint>(N + 1));
   {
-    Timer t("Radial Tracing");
+    Utils::Timer::Timer t("Radial Tracing");
 
     debugStruct.Q.clear();
     debugStruct.T.clear();
     for (int i = 0; i < settings.m; ++i) {
       float angle = 2.f * std::numbers::pi_v<float> * i / settings.m;
       glm::vec3 t = std::cos(angle) * e1 + std::sin(angle) * e2;
-      auto r0 = bvh.closestPoint(p);
-      glm::vec3 n0 = Mesh2Implicit::normal(r0.faceIdx, r0.bary, originMesh);
-      Q[i][0] = {p, t, n0, r0.faceIdx};
+      glm::vec3 n0 = model.normal(p);
+      Q[i][0] = {p, t, n0};
       debugStruct.Q.push_back({});
       debugStruct.T.push_back({});
     }
@@ -561,11 +471,9 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
 
         if (!settings.useSubSteppedProject) {
           // Eq. 2: q_{i,j+1} = π(q_{i,j} + h * t_{i,j})
-          auto r = bvh.closestPoint(tp_cur.pos + settings.h * tp_cur.tangent);
-          tp_next.pos = r.point;
-          tp_next.faceIdx = r.faceIdx;
-
-          tp_next.normal = Mesh2Implicit::normal(r.faceIdx, r.bary, originMesh);
+          glm::vec3 x_next = tp_cur.pos + settings.h * tp_cur.tangent;
+          tp_next.pos = model.project(x_next);
+          tp_next.normal = model.normal(x_next);
           tp_next.tangent = RadialTracing::parallelTransport(tp_cur.tangent, tp_cur.normal, tp_next.normal);
         } else {
 
@@ -574,33 +482,13 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
           // =========================================
 
           // Eq. 3: n(q_{i}, j) · n(π(τ_{i,j}(ℓ))) = s   (ℓ ∈ [0, h])
-          tp_next = RadialTracing::substeppedProject(tp_cur, settings.h, bvh, originMesh);
+          tp_next = RadialTracing::substeppedProject(tp_cur, settings.h, model).second;
         }
 
         Q[i][j + 1] = tp_next;
         debugStruct.Q[i].push_back(tp_next.pos);
         debugStruct.T[i].push_back(tp_next.tangent);
       });
-
-      if (j > 1) {
-        bool dirty = false;
-        for (int i = 0; i < settings.m; ++i) {
-          const int &faceIdx = Q[i][j + 1].faceIdx;
-          if (faceIdx == -1 || selectedID.contains(faceIdx)) {
-            dirty = true;
-            break;
-          }
-        }
-        if (!dirty) {
-          N = j;
-          for (int i = 0; i < settings.m; i++) {
-            Q[i][j + 1] = {};
-            debugStruct.Q[i].pop_back();
-            debugStruct.T[i].pop_back();
-          }
-          break;
-        }
-      }
 
       // =========================================
       // Section 3.3 - Holonomy Smoothing
@@ -631,7 +519,7 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
   // =========================================
   std::vector<MapInterpolation::PeriodicSpline> isolineSplines(N + 1);
   {
-    Timer t("Map Interpolation");
+    Utils::Timer::Timer t("Map Interpolation");
 
     for (int j = 0; j <= N; ++j) {
       std::vector<glm::vec3> isoPts(settings.m);
@@ -647,40 +535,40 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
   // 建立 log map table（tracing 結束後執行一次）
   LogarithmicMap::LogMapTable logMap;
   {
-    Timer t("Logarithmic Map");
+    Utils::Timer::Timer t("Logarithmic Map");
 
     logMap.build(isolineSplines, N, settings.h, p);
   }
 
   {
-    Timer t("Write Texture Coordinates");
+    Utils::Timer::Timer t("Write Texture Coordinates");
 
     // check whether Mesh has vertex texcoord2D
-    if (!originMesh.has_vertex_texcoords2D()) {
+    if (!mesh.has_vertex_texcoords2D()) {
 
-      originMesh.request_vertex_texcoords2D();
-      for (MyMesh::VertexHandle vh : originMesh.vertices())
-        originMesh.set_texcoord2D(vh, {-1, -1});
+      mesh.request_vertex_texcoords2D();
+      for (MyMesh::VertexHandle vh : mesh.vertices())
+        mesh.set_texcoord2D(vh, {-1, -1});
     }
 
     // check whether Mesh has face texture index
-    if (!originMesh.has_face_texture_index()) {
+    if (!mesh.has_face_texture_index()) {
 
-      originMesh.request_face_texture_index();
-      for (MyMesh::FaceHandle fh : originMesh.faces())
-        originMesh.set_texture_index(fh, -1);
+      mesh.request_face_texture_index();
+      for (MyMesh::FaceHandle fh : mesh.faces())
+        mesh.set_texture_index(fh, -1);
     }
 
     // write uv
-    originMesh.request_halfedge_texcoords2D();
-    for (auto vh : originMesh.vertices()) {
-      glm::vec3 vpos = Utils::toGlm(originMesh.point(vh));
+    mesh.request_halfedge_texcoords2D();
+    for (auto vh : mesh.vertices()) {
+      glm::vec3 vpos = Utils::toGlm(mesh.point(vh));
       glm::vec2 uv = logMap.query(vpos);
 
       // normalize to [0, 1]
       float R = N * settings.h;
       glm::vec2 uvNorm = uv / (2.f * R) + glm::vec2(0.5f);
-      originMesh.set_texcoord2D(vh, {uvNorm.x, uvNorm.y});
+      mesh.set_texcoord2D(vh, {uvNorm.x, uvNorm.y});
 
       // // Tangent/Bitangent: finite differences on UV
       // float eps = R * 0.02f; // about 2% of map radius
@@ -704,7 +592,7 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, MyMesh &originMes
       // originMesh.data(vh).bitangent = {bitangent.x, bitangent.y, bitangent.z};
     }
 
-    SolveUV::calculateTB(originMesh);
+    SolveUV::calculateTB(mesh);
   }
 }
 
