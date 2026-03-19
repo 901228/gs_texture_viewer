@@ -5,7 +5,6 @@
 #include <ImGui/imgui.h>
 
 #include "gs_gl_data.hpp"
-#include "ply.hpp"
 #include "utils/camera/camera.hpp"
 
 #include "rasterizer/rasterizer.hpp"
@@ -25,11 +24,6 @@ inline std::function<char *(size_t N)> resizeFunctional(void **ptr, size_t &S) {
   };
   return lambda;
 }
-
-void flipRow(glm::mat4 &mat, int row) {
-  for (int c = 0; c < 4; ++c)
-    mat[c][row] *= -1.0f;
-};
 
 } // namespace
 
@@ -97,7 +91,8 @@ GaussianModel::~GaussianModel() {
     cudaFree(_imgPtr);
 }
 
-void GaussianModel::_loadPly(const char *plyPath) {
+std::tuple<std::vector<Pos>, std::vector<Rot>, std::vector<Scale>, std::vector<float>>
+GaussianModel::_loadPly(const char *plyPath) {
 
   // load ply
   // TODO: get degree from ply
@@ -144,6 +139,8 @@ void GaussianModel::_loadPly(const char *plyPath) {
 
   _gsGLData = std::make_unique<GaussianGLData>(P, (float *)pos.data(), (float *)rot.data(),
                                                (float *)scale.data(), opacity.data(), (float *)shs.data());
+
+  return {pos, rot, scale, opacity};
 }
 
 void GaussianModel::uploadColmapViewPorjMatrix(const Camera &camera) const {

@@ -3,42 +3,11 @@
 #include "../utils.hpp"
 
 #include "expmap.hpp"
-#include "geodesic_splines.hpp"
 #include "harmonics.hpp"
 #include "model.hpp"
+#include "utils/mesh/mesh.hpp"
 
 namespace SolveUV {
-
-void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID, Model &model,
-           HitResult hitResult) {
-  switch (mode) {
-  case SolvingMode::Harmonics:
-    Harmonics::Solve(selectedID, model.mesh());
-    break;
-  case SolvingMode::ExpMap:
-    ExpMap::Solve(selectedID, model.mesh());
-    break;
-  case SolvingMode::GeodesicSplines:
-    glm::vec3 center;
-    if (hitResult.faceIdx >= 0 && selectedID.contains(hitResult.faceIdx)) {
-      center = hitResult.hitPoint;
-    } else {
-      int count = 0;
-      for (unsigned int f : selectedID) {
-        MyMesh::FaceHandle fh = model.mesh().face_handle(f);
-        for (const MyMesh::VertexHandle &fv : model.mesh().fv_range(fh)) {
-          center += Utils::toGlm(model.mesh().point(fv));
-          count++;
-        }
-      }
-      center /= float(count);
-    }
-    GeodesicSplines::Solve(selectedID, center, model, model.mesh(), hitResult);
-    break;
-  default:
-    throw std::runtime_error("Unknown solving mode!");
-  }
-}
 
 void calculateTB(MyMesh &mesh) {
 
@@ -105,6 +74,99 @@ void calculateTB(MyMesh &mesh) {
 
     mesh.data(vh).tangent = {T.x, T.y, T.z};
     mesh.data(vh).bitangent = {B.x, B.y, B.z};
+  }
+}
+
+std::pair<LogarithmicMap::LogMapTable, float> SolveGeodesic(glm::vec3 hitPoint,
+                                                            GeodesicSplines::Implicit &model) {
+  return GeodesicSplines::Solve(hitPoint, model);
+}
+
+void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID, Model &model,
+           std::optional<glm::vec3> hitPoint) {
+
+  switch (mode) {
+  case SolvingMode::Harmonics:
+    Harmonics::Solve(selectedID, model.mesh());
+    break;
+  case SolvingMode::ExpMap:
+    ExpMap::Solve(selectedID, model.mesh());
+    break;
+  case SolvingMode::GeodesicSplines: {
+    glm::vec3 center;
+    if (hitPoint.has_value()) {
+      center = hitPoint.value();
+    } else {
+      int count = 0;
+      for (unsigned int f : selectedID) {
+        MyMesh::FaceHandle fh = model.mesh().face_handle(f);
+        for (const MyMesh::VertexHandle &fv : model.mesh().fv_range(fh)) {
+          center += Utils::toGlm(model.mesh().point(fv));
+          count++;
+        }
+      }
+      center /= float(count);
+    }
+    const auto [logMap, R] = SolveGeodesic(center, model);
+
+    {
+      Utils::Timer::Timer t("Write Texture Coordinates");
+      MyMesh &mesh = model.mesh();
+
+      // check whether Mesh has vertex texcoord2D
+      if (!mesh.has_vertex_texcoords2D()) {
+
+        mesh.request_vertex_texcoords2D();
+        for (MyMesh::VertexHandle vh : mesh.vertices())
+          mesh.set_texcoord2D(vh, {-1, -1});
+      }
+
+      // check whether Mesh has face texture index
+      if (!mesh.has_face_texture_index()) {
+
+        mesh.request_face_texture_index();
+        for (MyMesh::FaceHandle fh : mesh.faces())
+          mesh.set_texture_index(fh, -1);
+      }
+
+      // write uv
+      mesh.request_halfedge_texcoords2D();
+      for (auto vh : mesh.vertices()) {
+        glm::vec3 vpos = Utils::toGlm(mesh.point(vh));
+        glm::vec2 uv = logMap.query(vpos);
+
+        // normalize to [0, 1]
+        glm::vec2 uvNorm = uv / (2.f * R) + glm::vec2(0.5f);
+        mesh.set_texcoord2D(vh, {uvNorm.x, uvNorm.y});
+
+        // // Tangent/Bitangent: finite differences on UV
+        // float eps = R * 0.02f; // about 2% of map radius
+
+        // // +u
+        // glm::vec2 uv_du = uv + glm::vec2(eps, 0.f);
+        // float r_du = glm::length(uv_du);
+        // float theta_du = std::atan2(uv_du.y, uv_du.x);
+        // glm::vec3 pt_du = MapInterpolation::forwardMap(r_du, theta_du, isolineSplines, N, settings.h, p);
+
+        // // +v
+        // glm::vec2 uv_dv = uv + glm::vec2(0.f, eps);
+        // float r_dv = glm::length(uv_dv);
+        // float theta_dv = std::atan2(uv_dv.y, uv_dv.x);
+        // glm::vec3 pt_dv = MapInterpolation::forwardMap(r_dv, theta_dv, isolineSplines, N, settings.h, p);
+
+        // glm::vec3 tangent = glm::normalize(pt_du - vpos);
+        // glm::vec3 bitangent = glm::normalize(pt_dv - vpos);
+
+        // originMesh.data(vh).tangent = {tangent.x, tangent.y, tangent.z};
+        // originMesh.data(vh).bitangent = {bitangent.x, bitangent.y, bitangent.z};
+      }
+
+      SolveUV::calculateTB(mesh);
+    }
+    break;
+  }
+  default:
+    throw std::runtime_error("Unknown solving mode!");
   }
 }
 

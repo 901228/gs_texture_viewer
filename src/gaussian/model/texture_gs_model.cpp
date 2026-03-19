@@ -150,7 +150,7 @@ void TextureGaussianModel::initMesh() {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * pixels));
 }
 
-void TextureGaussianModel::updateTexId(TextureEditor &textureEditor) {
+void TextureGaussianModel::updateTextureInfo(const TextureEditor &textureEditor) {
 
   size_t faceCount = _selectedID->size();
   auto selectedTexture = textureEditor.selectedPBR();
@@ -216,8 +216,8 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
                           _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
                           nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
                           _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
-                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _renderingMode,
-                          _mask_cuda, _threshold, textureOption);
+                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, nullptr, nullptr,
+                          _renderingMode, _mask_cuda, _threshold, textureOption);
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
@@ -242,9 +242,9 @@ void TextureGaussianModel::controls() {
   ImGui::SliderInt("Tess Level", &_tessLevel, 1, 1024);
 }
 
-bool TextureGaussianModel::selectRadius(int id, int radius, bool isAdd) {
+bool TextureGaussianModel::select(const glm::vec3 &hitPoint, int radius, bool isAdd) {
 
-  bool dirty = Model::selectRadius(id, radius, isAdd);
+  bool dirty = Model::select(hitPoint, radius, isAdd);
   if (!dirty) {
     return false;
   }
@@ -375,10 +375,9 @@ void TextureGaussianModel::clearSelect() {
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }
 
-void TextureGaussianModel::calculateParameterization(SolveUV::SolvingMode solvingMode,
-                                                     const HitResult &hitResult) {
+void TextureGaussianModel::solve(SolveUV::SolvingMode solvingMode, std::optional<glm::vec3> hitPoint) {
 
-  Model::calculateParameterization(solvingMode, hitResult);
+  Model::solve(solvingMode, hitPoint);
 
   for (AppearancePoint &point : _appearancePoints | std::ranges::views::filter([this](const auto &i) {
                                   return _selectedID->contains(i.faceId);

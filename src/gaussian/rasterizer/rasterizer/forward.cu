@@ -269,6 +269,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
                const float *__restrict__ features, const float4 *__restrict__ conic_opacity,
                float *__restrict__ final_T, uint32_t *__restrict__ n_contrib,
                const float *__restrict__ bg_color, float *__restrict__ out_color,
+               float *__restrict__ out_depth_raw = nullptr, float *__restrict__ out_t_final = nullptr,
                CudaRasterizer::RenderingMode renderingMode = CudaRasterizer::RenderingMode::Color,
                const CudaRasterizer::PixelMask *__restrict__ mask = nullptr, float threshold = 0.005f,
                CudaRasterizer::TextureOption textureOption = {}) {
@@ -383,6 +384,11 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
     final_T[pix_id] = T;
     n_contrib[pix_id] = last_contributor;
 
+    if (out_depth_raw != nullptr)
+      out_depth_raw[pix_id] = pixelDepth;
+    if (out_t_final != nullptr)
+      out_t_final[pix_id] = T;
+
     float dMax = __uint_as_float(depthMax);
     float dRange = dMax - DEPTH_MIN;
 
@@ -437,11 +443,11 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
 void FORWARD::render(dim3 grid, dim3 block, const uint2 *ranges, const uint32_t *point_list, int W, int H,
                      const float2 *means2D, const float *depths, const float *colors,
                      const float4 *conic_opacity, float *final_T, uint32_t *n_contrib, const float *bg_color,
-                     float *out_color, CudaRasterizer::RenderingMode renderingMode,
-                     const CudaRasterizer::PixelMask *mask, float threshold,
-                     CudaRasterizer::TextureOption textureOption) {
+                     float *out_color, float *out_depth_raw, float *out_t_final,
+                     CudaRasterizer::RenderingMode renderingMode, const CudaRasterizer::PixelMask *mask,
+                     float threshold, CudaRasterizer::TextureOption textureOption) {
 
   renderCUDA<NUM_CHANNELS><<<grid, block>>>(ranges, point_list, W, H, means2D, depths, colors, conic_opacity,
-                                            final_T, n_contrib, bg_color, out_color, renderingMode, mask,
-                                            threshold, textureOption);
+                                            final_T, n_contrib, bg_color, out_color, out_depth_raw,
+                                            out_t_final, renderingMode, mask, threshold, textureOption);
 }

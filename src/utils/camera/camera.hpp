@@ -68,23 +68,32 @@ protected:
     _viewMatrix = glm::lookAt(eye, center, up);
   }
 
+public:
+  static inline const glm::vec2 const getNDCPos(const glm::vec2 &localPos, float width, float height) {
+    return {
+        (localPos.x / width) * 2.0f - 1.0f,
+        1.0f - (localPos.y / height) * 2.0f // y should be flipped
+    };
+  }
+  static inline const glm::vec2 const getlocalPosFromNDC(const glm::vec2 &ndcPos, float width, float height) {
+    return {
+        (ndcPos.x * 0.5f + 0.5f) * width,
+        height - (ndcPos.y * 0.5f + 0.5f) * height // y should be flipped
+    };
+  }
+
 protected:
   // mode
   enum class MoveMode : int { None, Rotate, RotateUp, Pan, Zoom };
   MoveMode _moveMode = MoveMode::None;
 
   inline glm::vec2 _getNDCPos(const glm::vec2 &localPos) const {
-    return {
-        (localPos.x / _width) * 2.0f - 1.0f,
-        1.0f - (localPos.y / _height) * 2.0f // y should be flipped
-    };
+    return getNDCPos(localPos, _width, _height);
   }
   inline glm::vec2 _getlocalPosFromNDC(const glm::vec2 &ndcPos) const {
-    return {
-        _width + 2.0f * ndcPos.x + 2.0f,
-        _height - 2.0f * ndcPos.y + 2.0f // y should be flipped
-    };
+    return getlocalPosFromNDC(ndcPos, _width, _height);
   }
+
   static inline const bool _insideSphere(glm::vec2 p, float radius = 1.0f) {
     return p.x * p.x + p.y * p.y <= radius * radius;
   }

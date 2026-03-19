@@ -43,10 +43,10 @@ private:
 
 public:
   // model
-  bool selectRadius(int id, int radius, bool isAdd) override;
   void updateData();
+  bool select(const glm::vec3 &hitPoint, int radius, bool isAdd) override;
   void clearSelect() override;
-  void calculateParameterization(SolveUV::SolvingMode solvingMode, const HitResult &hitResult) override;
+  void solve(SolveUV::SolvingMode solvingMode, std::optional<glm::vec3> hitPoint = std::nullopt) override;
 
   [[nodiscard]] std::vector<std::pair<unsigned int, std::pair<float, float>>>
   getSelectedTextureCoords() const override;
@@ -83,7 +83,7 @@ private:
   CudaRasterizer::RenderingMode _renderingMode = CudaRasterizer::RenderingMode::Color;
 
 public:
-  void updateTexId(TextureEditor &textureEditor) override;
+  void updateTextureInfo(const TextureEditor &textureEditor) override;
 
 public:
   using GaussianModel::center;

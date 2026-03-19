@@ -2,11 +2,36 @@
 #define GEODESIC_SPLINES_HPP
 #pragma once
 
-#include <unordered_set>
+#include <glm/glm.hpp>
 
 #include <ImGui/imgui.h>
 
-#include "hit_test.hpp"
+namespace MapInterpolation {
+struct PeriodicSpline;
+}
+
+namespace LogarithmicMap {
+
+struct LogMapTable {
+  std::vector<glm::vec2> uvs;   // tangent space coords
+  std::vector<glm::vec3> pts3d; // corresponding 3D positions
+
+  // Grid Acceleration
+  int gridRes = 32;
+  float cellSize;
+  glm::vec3 gridMin;
+  std::vector<std::vector<int>> grid; // gridRes^3
+
+  void buildGrid();
+
+  void build(const std::vector<MapInterpolation::PeriodicSpline> &isolineSplines, int n, float h,
+             const glm::vec3 &origin, int numSamples = 5000);
+
+  // given a 3D point, find the corresponding UV
+  glm::vec2 query(const glm::vec3 &p) const;
+};
+
+} // namespace LogarithmicMap
 
 namespace GeodesicSplines {
 
@@ -27,7 +52,7 @@ public:
 
 struct Settings {
   int m = 50;      // radial curves
-  int n = 100;      // steps
+  int n = 100;     // steps
   float h = 0.01f; // step size
   bool useSubSteppedProject = true;
   bool enableSmoothing = true;
@@ -45,9 +70,10 @@ struct DebugStruct {
 
   float h = 0.01f; // step size
 
-  void draw(ImDrawList *drawList, ImVec2 pos, const glm::mat4 &projview, float width, float height) {
+  void draw(ImDrawList *drawList, ImVec2 pos, const glm::mat4 &projview, float width, float height,
+            bool flip_y = true) {
 
-    auto [show, p] = project(center, projview, width, height);
+    auto [show, p] = project(center, projview, width, height, flip_y);
     if (show) {
       drawList->AddCircleFilled(pos + p, 4.f, IM_COL32(0, 255, 150, 255));
     }
@@ -55,7 +81,7 @@ struct DebugStruct {
     // for (const auto &qm : Q) {
     //   int total = static_cast<int>(qm.size());
     //   for (int j = 0; j < total; ++j) {
-    //     auto [show, p] = project(qm[j], projview, width, height);
+    //     auto [show, p] = project(qm[j], projview, width, height, flip_y);
     //     if (!show)
     //       continue;
 
@@ -88,8 +114,8 @@ struct DebugStruct {
         glm::vec3 t = T[i][j]; // 需要 cache tangent
         glm::vec3 end3d = curve[j] + h * t;
 
-        auto [show0, p0] = project(curve[j], projview, width, height);
-        auto [show1, p1] = project(end3d, projview, width, height);
+        auto [show0, p0] = project(curve[j], projview, width, height, flip_y);
+        auto [show1, p1] = project(end3d, projview, width, height, flip_y);
         if (show0 && show1)
           drawList->AddLine(pos + p0, pos + p1, color, 2.f);
       }
@@ -98,7 +124,7 @@ struct DebugStruct {
 
 private:
   static std::pair<bool, ImVec2> project(const glm::vec3 p, const glm::mat4 &projview, float width,
-                                         float height) {
+                                         float height, bool flip_y = true) {
     // World → Clip space
     glm::vec4 clip = projview * glm::vec4(p, 1.0f);
 
@@ -113,15 +139,16 @@ private:
 
     // NDC → 螢幕像素
     float sx = (ndc.x * 0.5f + 0.5f) * width;
-    float sy = (1.f - (ndc.y * 0.5f + 0.5f)) * height; // Y 軸翻轉
+    float sy = (ndc.y * 0.5f + 0.5f) * height;
+    if (flip_y)
+      sy = height - sy;
 
     return std::pair(true, ImVec2(sx, sy));
   };
 };
 inline DebugStruct debugStruct;
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, glm::vec3 center, Implicit &model,
-           MyMesh &mesh, HitResult hitResult);
+std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &model);
 
 } // namespace GeodesicSplines
 

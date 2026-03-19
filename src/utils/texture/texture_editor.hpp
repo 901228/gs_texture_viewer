@@ -3,6 +3,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -10,17 +11,28 @@
 
 #include <IconsFont/IconsLucide.h>
 
-#include "../mesh/model.hpp"
+#include "../camera/camera.hpp"
 #include "../mesh/solve_uv.hpp"
 #include "texture.hpp"
 
 class TextureEditor {
+public:
+  class TextureEditableModel {
+  public:
+    virtual std::optional<glm::vec3> hit(const Camera &camera, const glm::vec2 &ndcPos) const = 0;
+    virtual bool select(const glm::vec3 &hitPoint, int radius, bool isAdd) = 0;
+    virtual void clearSelect() = 0;
+    virtual void solve(SolveUV::SolvingMode solvingMode,
+                       std::optional<glm::vec3> hitPoint = std::nullopt) = 0;
+    virtual void updateTextureInfo(const TextureEditor &editor) = 0;
+  };
+
 private:
   constexpr static std::string_view textureListPath = PROJECT_DIR "/textures.toml";
   std::string_view _textureListPath;
 
 public:
-  explicit TextureEditor(Model &model, bool isPBR = false,
+  explicit TextureEditor(TextureEditableModel &model, bool isPBR = false,
                          const std::string_view textureListPath = TextureEditor::textureListPath,
                          float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 2.0f);
   ~TextureEditor();
@@ -36,7 +48,7 @@ private:
   void renderList();
 
 private:
-  Model &_model;
+  TextureEditableModel &_model;
 
 private:
   enum class SelectMode : int { Faces, Point };
@@ -45,7 +57,7 @@ private:
 private:
   // brush and solving
   int _brushRadius = 10;
-  HitResult _hitResult{};
+  std::optional<glm::vec3> _hitResult = std::nullopt;
 
   SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::GeodesicSplines;
   bool _solved = false;

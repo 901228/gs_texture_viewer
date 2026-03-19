@@ -14,6 +14,7 @@
 #include "../cache.hpp"
 #include "../gl/program.hpp"
 #include "../texture/texture.hpp"
+#include "../texture/texture_editor.hpp"
 #include "geodesic_splines.hpp"
 #include "hit_test.hpp"
 #include "mesh.hpp"
@@ -24,13 +25,11 @@ class Camera;
 
 typedef std::pair<std::pair<float, float>, std::pair<float, float>> TextureLine;
 
-class TextureEditor;
-
 namespace Light {
 static constexpr const char *icon = ICON_LC_LIGHTBULB;
 }
 
-class Model : public GeodesicSplines::Implicit {
+class Model : public GeodesicSplines::Implicit, public TextureEditor::TextureEditableModel {
 public:
   explicit Model();
   explicit Model(const char *path);
@@ -84,14 +83,7 @@ protected:
   BVH::BVH _bvh;
 
 public:
-  [[nodiscard]] HitResult select(const Camera &camera, float width, float height,
-                                 const glm::vec2 &mousePos) const;
-
   inline void addSelectedID(unsigned int id) { _selectedID->insert(id); }
-  virtual void clearSelect();
-  virtual bool selectRadius(int id, int radius, bool isAdd);
-
-  virtual void calculateParameterization(SolveUV::SolvingMode solvingMode, const HitResult &hitResult);
 
   [[nodiscard]] inline const std::unordered_set<unsigned int> &selectedID() const { return *_selectedID; }
   std::vector<TextureLine> getSelectedTextureLines();
@@ -100,9 +92,6 @@ public:
 
 protected:
   virtual void updateTexcoordVAO();
-
-public:
-  virtual void updateTexId(TextureEditor &textureEditor);
 
 protected:
   glm::vec3 _boxmin{std::numeric_limits<float>::max()};
@@ -136,6 +125,14 @@ public:
   // const glm::vec3 grad(const glm::vec3 &x) override;
   const glm::vec3 project(const glm::vec3 &x) override;
   const glm::vec3 normal(const glm::vec3 &x) override;
+
+public:
+  std::optional<glm::vec3> hit(const Camera &camera, const glm::vec2 &ndcPos) const override;
+  virtual bool select(const glm::vec3 &hitPoint, int radius, bool isAdd) override;
+  virtual void clearSelect() override;
+  virtual void solve(SolveUV::SolvingMode solvingMode,
+                     std::optional<glm::vec3> hitPoint = std::nullopt) override;
+  virtual void updateTextureInfo(const TextureEditor &textureEditor) override;
 };
 
 #endif // !MODEL_HPP

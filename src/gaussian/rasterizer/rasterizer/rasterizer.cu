@@ -176,17 +176,15 @@ __global__ void identifyTileRanges(int L, const uint64_t *point_list_keys, uint2
 
 // Forward rendering procedure for differentiable rasterization
 // of Gaussians.
-int CudaRasterizer::forward(const std::function<char *(size_t)> &geometryBuffer,
-                            const std::function<char *(size_t)> &binningBuffer,
-                            const std::function<char *(size_t)> &imageBuffer, int P, int D, int M,
-                            const float *background, int width, int height, const float *means3D,
-                            const float *shs, const float *colors_precomp, const float *opacities,
-                            const float *scales, float scale_modifier, const float *rotations,
-                            const float *cov3D_precomp, const float *viewmatrix, const float *projviewmatrix,
-                            const float *cam_pos, float tan_fovx, float tan_fovy, bool prefiltered,
-                            float *out_color, bool antialiasing, int *radii, int *rects, const float *boxmin,
-                            const float *boxmax, RenderingMode renderingMode, const PixelMask *mask,
-                            float threshold, TextureOption textureOption) {
+int CudaRasterizer::forward(
+    const std::function<char *(size_t)> &geometryBuffer, const std::function<char *(size_t)> &binningBuffer,
+    const std::function<char *(size_t)> &imageBuffer, int P, int D, int M, const float *background, int width,
+    int height, const float *means3D, const float *shs, const float *colors_precomp, const float *opacities,
+    const float *scales, float scale_modifier, const float *rotations, const float *cov3D_precomp,
+    const float *viewmatrix, const float *projviewmatrix, const float *cam_pos, float tan_fovx,
+    float tan_fovy, bool prefiltered, float *out_color, bool antialiasing, int *radii, int *rects,
+    const float *boxmin, const float *boxmax, float *out_depth_raw, float *out_t_final,
+    RenderingMode renderingMode, const PixelMask *mask, float threshold, TextureOption textureOption) {
 
   const float focal_y = static_cast<float>(height) / (2.0f * tan_fovy);
   const float focal_x = static_cast<float>(width) / (2.0f * tan_fovx);
@@ -267,8 +265,8 @@ int CudaRasterizer::forward(const std::function<char *(size_t)> &geometryBuffer,
   const float *feature_ptr = colors_precomp != nullptr ? colors_precomp : geomState.rgb;
   FORWARD::render(tile_grid, block, imgState.ranges, binningState.point_list, width, height,
                   geomState.means2D, geomState.depths, feature_ptr, geomState.conic_opacity,
-                  imgState.accum_alpha, imgState.n_contrib, background, out_color, renderingMode, mask,
-                  threshold, textureOption);
+                  imgState.accum_alpha, imgState.n_contrib, background, out_color, out_depth_raw, out_t_final,
+                  renderingMode, mask, threshold, textureOption);
 
   return num_rendered;
 }

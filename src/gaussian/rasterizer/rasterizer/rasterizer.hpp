@@ -19,7 +19,8 @@ int forward(const std::function<char *(size_t)> &geometryBuffer,
             const float *cov3D_precomp, const float *viewmatrix, const float *projviewmatrix,
             const float *cam_pos, float tan_fovx, float tan_fovy, bool prefiltered, float *out_color,
             bool antialiasing, int *radii = nullptr, int *rects = nullptr, const float *boxmin = nullptr,
-            const float *boxmax = nullptr, RenderingMode renderingMode = RenderingMode::Color,
+            const float *boxmax = nullptr, float *out_depth_raw = nullptr, float *out_t_final = nullptr,
+            RenderingMode renderingMode = RenderingMode::Color,
             const CudaRasterizer::PixelMask *mask = nullptr, float threshold = 0.005f,
             TextureOption textureOption = {});
 

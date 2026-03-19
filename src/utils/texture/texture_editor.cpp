@@ -9,11 +9,11 @@
 #include "../imgui/tool_line.hpp"
 #include "../utils.hpp"
 #include "texture.hpp"
+#include "utils/camera/camera.hpp"
 #include "utils/mesh/geodesic_splines.hpp"
-#include "utils/mesh/hit_test.hpp"
 #include "utils/mesh/solve_uv.hpp"
 
-TextureEditor::TextureEditor(Model &model, bool isPBR, const std::string_view textureListPath,
+TextureEditor::TextureEditor(TextureEditableModel &model, bool isPBR, const std::string_view textureListPath,
                              float scaleStep, float scaleMin, float scaleMax)
     : _model(model), _isPBR(isPBR), _textureListPath(textureListPath), _scaleStep(scaleStep),
       _scaleMin(scaleMin), _scaleMax(scaleMax) {
@@ -85,7 +85,7 @@ void TextureEditor::renderList() {
                                  (ImTextureID)(intptr_t)texture.id(), _selectedTexture == i,
                                  {imageWidth, imageWidth / texture.aspect()}, tooltip)) {
         _selectedTexture = i;
-        _model.updateTexId(*this);
+        _model.updateTextureInfo(*this);
       }
     };
 
@@ -149,8 +149,7 @@ void TextureEditor::controls() {
     }
 
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-      _model.calculateParameterization(_solvingMode,
-                                       _selectMode == SelectMode::Point ? _hitResult : HitResult());
+      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? std::optional(_hitResult) : std::nullopt);
       _solved = true;
     }
   }
@@ -163,8 +162,7 @@ void TextureEditor::controls() {
 
     if (_autoCalculate && !_solved) {
 
-      _model.calculateParameterization(_solvingMode,
-                                       _selectMode == SelectMode::Point ? _hitResult : HitResult());
+      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? std::optional(_hitResult) : std::nullopt);
       _solved = true;
     }
 
@@ -324,28 +322,28 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
     glm::vec2 windowPos = Utils::toGlm(ImGui::GetWindowPos());
     glm::vec2 mousePos = Utils::toGlm(ImGui::GetMousePos());
     glm::vec2 mousePosInWindow = mousePos - windowPos;
-    auto hitResult = _model.select(camera, width, height, mousePosInWindow);
-    if (hitResult.faceIdx < 0 || hitResult.faceIdx >= _model.n_faces())
+    glm::vec2 ndcPos = Camera::getNDCPos(mousePos - windowPos, width, height);
+    _hitResult = _model.hit(camera, ndcPos);
+    if (!_hitResult.has_value())
       return;
 
     bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (isLeftDown || isRightDown) {
-      _hitResult = hitResult;
 
       // handle select mesh face
       if (_selectMode == SelectMode::Faces) {
 
-        bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+        bool dirty = _model.select(_hitResult.value(), _brushRadius - 1, isLeftDown);
         if (dirty) {
-          _model.updateTexId(*this);
+          _model.updateTextureInfo(*this);
         }
       } else if (_selectMode == SelectMode::Point) {
 
         _model.clearSelect();
-        bool dirty = _model.selectRadius(hitResult.faceIdx, _brushRadius - 1, isLeftDown);
+        bool dirty = _model.select(_hitResult.value(), _brushRadius - 1, isLeftDown);
         if (dirty) {
-          _model.updateTexId(*this);
+          _model.updateTextureInfo(*this);
         }
       }
     }

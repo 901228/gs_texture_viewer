@@ -11,12 +11,9 @@ file(GLOB src_files
   utils/mesh/*.cpp
   utils/texture/*.cpp
 
-  gaussian/model/gs_model.cpp
-  gaussian/model/texture_gs_model.cpp
-  gaussian/view/gs_view.cpp
-  gaussian/view/renderer/ellipsoid_renderer.cpp
-  gaussian/view/renderer/point_renderer.cpp
-  gaussian/view/renderer/gaussian_renderer.cpp
+  gaussian/model/*.cpp
+  gaussian/view/*.cpp
+  gaussian/view/renderer/*.cpp
 )
 
 # add src files to executable

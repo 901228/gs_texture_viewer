@@ -242,74 +242,6 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
   }
 }
 
-HitResult Model::select(const Camera &camera, float width, float height, const glm::vec2 &mousePos) const {
-  float x = 2.0f * (mousePos.x / width) - 1.0f;
-  float y = 1.0f - 2.0f * (mousePos.y / height);
-  glm::vec4 rayClip(x, y, -1.0f, 1.0f);
-
-  const glm::mat4 &proj = camera.projectionMatrix();
-  const glm::mat4 &view = camera.viewMatrix();
-  glm::vec4 rayEye = glm::inverse(proj) * rayClip;
-  rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
-  glm::vec3 rayDir = glm::normalize(glm::vec3(glm::inverse(view) * rayEye));
-  const glm::vec3 &rayOrigin = camera.eye();
-
-  HitResult hit = _bvh.raycast(rayOrigin, rayDir);
-  return hit;
-}
-
-bool Model::selectRadius(int id, int radius, bool isAdd) {
-  if (id < 0 || id >= n_faces())
-    return false;
-
-  std::unordered_set<int> visited;
-
-  // {faceHandle, depth}
-  std::queue<std::pair<MyMesh::FaceHandle, int>> queue;
-  queue.emplace(_mesh.face_handle(id), 0);
-  visited.insert(id);
-
-  bool dirty = false;
-
-  while (!queue.empty()) {
-    auto [fh, depth] = queue.front();
-    queue.pop();
-
-    auto flag = _selectedID->find(fh.idx());
-    if (isAdd && flag == _selectedID->end()) {
-      dirty = true;
-      _selectedID->insert(fh.idx());
-    } else if (!isAdd && flag != _selectedID->end()) {
-      dirty = true;
-      _selectedID->erase(flag);
-    }
-
-    if (depth >= radius)
-      continue;
-
-    for (const auto &neighbor : _mesh.ff_range(fh)) {
-
-      if (!_mesh.is_valid_handle(neighbor) || visited.contains(neighbor.idx()))
-        continue;
-
-      visited.insert(neighbor.idx());
-      queue.emplace(neighbor, depth + 1);
-    }
-  }
-
-  return dirty;
-}
-
-void Model::clearSelect() { _selectedID->clear(); }
-
-void Model::calculateParameterization(SolveUV::SolvingMode solvingMode, const HitResult &hitResult) {
-  if (_selectedID->empty())
-    return;
-
-  SolveUV::Solve(solvingMode, *_selectedID, *this, hitResult);
-  updateTexcoordVAO();
-}
-
 void Model::updateTexcoordVAO() {
   const size_t vertexCount = n_faces() * 3;
 
@@ -354,7 +286,7 @@ void Model::updateTexcoordVAO() {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void Model::updateTexId(TextureEditor &textureEditor) {
+void Model::updateTextureInfo(const TextureEditor &textureEditor) {
   // TODO: update texture ID buffer
 }
 
@@ -459,4 +391,76 @@ const glm::vec3 Model::normal(const glm::vec3 &x) {
   ++fv;
   glm::vec3 nc = Utils::toGlm(_mesh.normal(*fv));
   return glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
+}
+
+std::optional<glm::vec3> Model::hit(const Camera &camera, const glm::vec2 &ndcPos) const {
+
+  glm::vec4 rayClip(ndcPos, -1.0f, 1.0f);
+
+  const glm::mat4 &proj = camera.projectionMatrix();
+  const glm::mat4 &view = camera.viewMatrix();
+  glm::vec4 rayEye = glm::inverse(proj) * rayClip;
+  rayEye = glm::vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);
+  glm::vec3 rayDir = glm::normalize(glm::vec3(glm::inverse(view) * rayEye));
+  const glm::vec3 &rayOrigin = camera.eye();
+
+  HitResult hit = _bvh.raycast(rayOrigin, rayDir);
+  if (hit.faceIdx < 0 || hit.faceIdx >= n_faces()) {
+    return std::nullopt;
+  }
+
+  return hit.hitPoint;
+}
+
+bool Model::select(const glm::vec3 &hitPoint, int radius, bool isAdd) {
+
+  ClosestPointResult result = _bvh.closestPoint(hitPoint);
+
+  std::unordered_set<int> visited;
+
+  // {faceHandle, depth}
+  std::queue<std::pair<MyMesh::FaceHandle, int>> queue;
+  queue.emplace(_mesh.face_handle(result.faceIdx), 0);
+  visited.insert(result.faceIdx);
+
+  bool dirty = false;
+
+  while (!queue.empty()) {
+    auto [fh, depth] = queue.front();
+    queue.pop();
+
+    auto flag = _selectedID->find(fh.idx());
+    if (isAdd && flag == _selectedID->end()) {
+      dirty = true;
+      _selectedID->insert(fh.idx());
+    } else if (!isAdd && flag != _selectedID->end()) {
+      dirty = true;
+      _selectedID->erase(flag);
+    }
+
+    if (depth >= radius)
+      continue;
+
+    for (const auto &neighbor : _mesh.ff_range(fh)) {
+
+      if (!_mesh.is_valid_handle(neighbor) || visited.contains(neighbor.idx()))
+        continue;
+
+      visited.insert(neighbor.idx());
+      queue.emplace(neighbor, depth + 1);
+    }
+  }
+
+  return dirty;
+}
+
+void Model::clearSelect() { _selectedID->clear(); }
+
+void Model::solve(SolveUV::SolvingMode solvingMode, std::optional<glm::vec3> hitPoint) {
+
+  if (_selectedID->empty())
+    return;
+
+  SolveUV::Solve(solvingMode, *_selectedID, *this, hitPoint);
+  updateTexcoordVAO();
 }

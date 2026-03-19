@@ -1,12 +1,8 @@
 #include "geodesic_splines.hpp"
-#include "solve_uv.hpp"
-#include "utils/mesh/geodesic_splines.hpp"
-#include "utils/mesh/mesh.hpp"
 
 #include <execution>
 #include <numbers>
 #include <random>
-#include <unordered_set>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/component_wise.hpp>
@@ -313,102 +309,88 @@ glm::vec3 forwardMap(float r, float theta, const std::vector<PeriodicSpline> &is
 
 namespace LogarithmicMap {
 
-struct LogMapTable {
-  std::vector<glm::vec2> uvs;   // tangent space coords
-  std::vector<glm::vec3> pts3d; // corresponding 3D positions
+void LogMapTable::buildGrid() {
 
-  // Grid Acceleration
-  int gridRes = 32;
-  float cellSize;
-  glm::vec3 gridMin;
-  std::vector<std::vector<int>> grid; // gridRes^3
-
-  void buildGrid() {
-
-    // 計算 pts3d 的 AABB
-    glm::vec3 bmin(1e9), bmax(-1e9);
-    for (auto &p : pts3d) {
-      bmin = glm::min(bmin, p);
-      bmax = glm::max(bmax, p);
-    }
-    gridMin = bmin;
-    cellSize = glm::compMax(bmax - bmin) / gridRes;
-
-    grid.resize(gridRes * gridRes * gridRes);
-    for (int k = 0; k < (int)pts3d.size(); ++k) {
-      glm::ivec3 cell =
-          glm::clamp(glm::ivec3((pts3d[k] - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
-      int idx = cell.x + gridRes * (cell.y + gridRes * cell.z);
-      grid[idx].push_back(k);
-    }
+  // 計算 pts3d 的 AABB
+  glm::vec3 bmin(1e9), bmax(-1e9);
+  for (auto &p : pts3d) {
+    bmin = glm::min(bmin, p);
+    bmax = glm::max(bmax, p);
   }
+  gridMin = bmin;
+  cellSize = glm::compMax(bmax - bmin) / gridRes;
 
-  void build(const std::vector<MapInterpolation::PeriodicSpline> &isolineSplines, int n, float h,
-             const glm::vec3 &origin, int numSamples = 5000) {
-
-    float R = n * h;
-    uvs.clear();
-    pts3d.clear();
-    uvs.reserve(numSamples);
-    pts3d.reserve(numSamples);
-
-    // Origin
-    uvs.push_back({0, 0});
-    pts3d.push_back(origin);
-
-    // 均勻取樣 tangent disc
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> distR(0, R);
-    std::uniform_real_distribution<float> distTheta(0, 2 * std::numbers::pi_v<float>);
-
-    for (int k = 0; k < numSamples; ++k) {
-      float r = distR(rng);
-      float theta = distTheta(rng);
-      glm::vec2 uv = {r * std::cos(theta), r * std::sin(theta)};
-      glm::vec3 pt = MapInterpolation::forwardMap(r, theta, isolineSplines, n, h, origin);
-      uvs.push_back(uv);
-      pts3d.push_back(pt);
-    }
-
-    buildGrid();
-  }
-
-  // given a 3D point, find the corresponding UV
-  glm::vec2 query(const glm::vec3 &p) const {
-
+  grid.resize(gridRes * gridRes * gridRes);
+  for (int k = 0; k < (int)pts3d.size(); ++k) {
     glm::ivec3 cell =
-        glm::clamp(glm::ivec3((p - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+        glm::clamp(glm::ivec3((pts3d[k] - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+    int idx = cell.x + gridRes * (cell.y + gridRes * cell.z);
+    grid[idx].push_back(k);
+  }
+}
 
-    float best = 1e18f;
-    int bestIdx = 0;
-    // 只搜周圍 3x3x3 cells
-    for (int dz = -1; dz <= 1; ++dz)
-      for (int dy = -1; dy <= 1; ++dy)
-        for (int dx = -1; dx <= 1; ++dx) {
-          glm::ivec3 nb = cell + glm::ivec3(dx, dy, dz);
-          if (glm::any(glm::lessThan(nb, glm::ivec3(0))))
-            continue;
-          if (glm::any(glm::greaterThanEqual(nb, glm::ivec3(gridRes))))
-            continue;
-          int idx = nb.x + gridRes * (nb.y + gridRes * nb.z);
-          for (int k : grid[idx]) {
-            float d2 = glm::dot(p - pts3d[k], p - pts3d[k]);
-            if (d2 < best) {
-              best = d2;
-              bestIdx = k;
-            }
+void LogMapTable::build(const std::vector<MapInterpolation::PeriodicSpline> &isolineSplines, int n, float h,
+                        const glm::vec3 &origin, int numSamples) {
+
+  float R = n * h;
+  uvs.clear();
+  pts3d.clear();
+  uvs.reserve(numSamples);
+  pts3d.reserve(numSamples);
+
+  // Origin
+  uvs.push_back({0, 0});
+  pts3d.push_back(origin);
+
+  // 均勻取樣 tangent disc
+  std::mt19937 rng(42);
+  std::uniform_real_distribution<float> distR(0, R);
+  std::uniform_real_distribution<float> distTheta(0, 2 * std::numbers::pi_v<float>);
+
+  for (int k = 0; k < numSamples; ++k) {
+    float r = distR(rng);
+    float theta = distTheta(rng);
+    glm::vec2 uv = {r * std::cos(theta), r * std::sin(theta)};
+    glm::vec3 pt = MapInterpolation::forwardMap(r, theta, isolineSplines, n, h, origin);
+    uvs.push_back(uv);
+    pts3d.push_back(pt);
+  }
+
+  buildGrid();
+}
+
+glm::vec2 LogMapTable::query(const glm::vec3 &p) const {
+
+  glm::ivec3 cell = glm::clamp(glm::ivec3((p - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+
+  float best = 1e18f;
+  int bestIdx = 0;
+  // 只搜周圍 3x3x3 cells
+  for (int dz = -1; dz <= 1; ++dz)
+    for (int dy = -1; dy <= 1; ++dy)
+      for (int dx = -1; dx <= 1; ++dx) {
+        glm::ivec3 nb = cell + glm::ivec3(dx, dy, dz);
+        if (glm::any(glm::lessThan(nb, glm::ivec3(0))))
+          continue;
+        if (glm::any(glm::greaterThanEqual(nb, glm::ivec3(gridRes))))
+          continue;
+        int idx = nb.x + gridRes * (nb.y + gridRes * nb.z);
+        for (int k : grid[idx]) {
+          float d2 = glm::dot(p - pts3d[k], p - pts3d[k]);
+          if (d2 < best) {
+            best = d2;
+            bestIdx = k;
           }
         }
-    return uvs[bestIdx];
-  }
-};
+      }
+  return uvs[bestIdx];
+}
 
 } // namespace LogarithmicMap
 
 namespace GeodesicSplines {
 
-void Solve(const std::unordered_set<unsigned int> &selectedID, glm::vec3 center, Implicit &model,
-           MyMesh &mesh, HitResult hitResult) {
+std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &model) {
 
   Utils::Timer::Timer t("Geodesic Splines Solve");
 
@@ -540,60 +522,7 @@ void Solve(const std::unordered_set<unsigned int> &selectedID, glm::vec3 center,
     logMap.build(isolineSplines, N, settings.h, p);
   }
 
-  {
-    Utils::Timer::Timer t("Write Texture Coordinates");
-
-    // check whether Mesh has vertex texcoord2D
-    if (!mesh.has_vertex_texcoords2D()) {
-
-      mesh.request_vertex_texcoords2D();
-      for (MyMesh::VertexHandle vh : mesh.vertices())
-        mesh.set_texcoord2D(vh, {-1, -1});
-    }
-
-    // check whether Mesh has face texture index
-    if (!mesh.has_face_texture_index()) {
-
-      mesh.request_face_texture_index();
-      for (MyMesh::FaceHandle fh : mesh.faces())
-        mesh.set_texture_index(fh, -1);
-    }
-
-    // write uv
-    mesh.request_halfedge_texcoords2D();
-    for (auto vh : mesh.vertices()) {
-      glm::vec3 vpos = Utils::toGlm(mesh.point(vh));
-      glm::vec2 uv = logMap.query(vpos);
-
-      // normalize to [0, 1]
-      float R = N * settings.h;
-      glm::vec2 uvNorm = uv / (2.f * R) + glm::vec2(0.5f);
-      mesh.set_texcoord2D(vh, {uvNorm.x, uvNorm.y});
-
-      // // Tangent/Bitangent: finite differences on UV
-      // float eps = R * 0.02f; // about 2% of map radius
-
-      // // +u
-      // glm::vec2 uv_du = uv + glm::vec2(eps, 0.f);
-      // float r_du = glm::length(uv_du);
-      // float theta_du = std::atan2(uv_du.y, uv_du.x);
-      // glm::vec3 pt_du = MapInterpolation::forwardMap(r_du, theta_du, isolineSplines, N, settings.h, p);
-
-      // // +v
-      // glm::vec2 uv_dv = uv + glm::vec2(0.f, eps);
-      // float r_dv = glm::length(uv_dv);
-      // float theta_dv = std::atan2(uv_dv.y, uv_dv.x);
-      // glm::vec3 pt_dv = MapInterpolation::forwardMap(r_dv, theta_dv, isolineSplines, N, settings.h, p);
-
-      // glm::vec3 tangent = glm::normalize(pt_du - vpos);
-      // glm::vec3 bitangent = glm::normalize(pt_dv - vpos);
-
-      // originMesh.data(vh).tangent = {tangent.x, tangent.y, tangent.z};
-      // originMesh.data(vh).bitangent = {bitangent.x, bitangent.y, bitangent.z};
-    }
-
-    SolveUV::calculateTB(mesh);
-  }
+  return std::make_pair(logMap, N * settings.h);
 }
 
 } // namespace GeodesicSplines

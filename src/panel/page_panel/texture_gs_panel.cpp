@@ -42,6 +42,7 @@ void TextureGSPanel::_onResize(float width, float height) {
 void TextureGSPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImDrawList *drawList;
 
   if (ImGui::BeginChild(std::format("{} Splats View", name()).c_str())) {
 
@@ -61,8 +62,15 @@ void TextureGSPanel::_render() {
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
+
+    drawList = ImGui::GetWindowDrawList();
   }
   ImGui::EndChild();
+
+  if (_textureEditor->isGeodesic() && GeodesicSplines::debugStruct.show) {
+    GeodesicSplines::debugStruct.draw(drawList, pos, camera->projectionMatrix() * camera->viewMatrix(),
+                                      _width, _height);
+  }
 }
 
 void TextureGSPanel::_renderParameterization() {

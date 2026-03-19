@@ -6,6 +6,9 @@
 
 #include <glm/glm.hpp>
 
+#include "ply.hpp"
+#include "utils/logger.hpp"
+
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                             \
   A;                                                                                                         \
   cudaDeviceSynchronize();                                                                                   \
@@ -17,11 +20,16 @@
 #else
 #define CUDA_SAFE_CALL(A) A
 #endif
-
 class Camera;
 class GaussianGLData;
 
 class GaussianModel {
+public:
+  inline static void flipRow(glm::mat4 &mat, int row) {
+    for (int c = 0; c < 4; ++c)
+      mat[c][row] *= -1.0f;
+  };
+
 public:
   explicit GaussianModel(int sh_degree, int device = 0);
   GaussianModel(const char *plyPath, int sh_degree, int device = 0);
@@ -29,7 +37,8 @@ public:
 
 protected:
   static void _initCuda(int device);
-  void _loadPly(const char *plyPath);
+  virtual std::tuple<std::vector<Pos>, std::vector<Rot>, std::vector<Scale>, std::vector<float>>
+  _loadPly(const char *plyPath);
 
 public:
   virtual void render(const Camera &camera, const int &width, const int &height, const glm::vec3 &clearColor,
