@@ -84,7 +84,11 @@ void TextureEditor::renderList() {
       if (ImGui::ImageSelectable(std::format("##{} selectable", texture.path()).c_str(),
                                  (ImTextureID)(intptr_t)texture.id(), _selectedTexture == i,
                                  {imageWidth, imageWidth / texture.aspect()}, tooltip)) {
-        _selectedTexture = i;
+        if (_selectedTexture == i) {
+          _selectedTexture = -1;
+        } else {
+          _selectedTexture = i;
+        }
         _model.updateTextureInfo(*this);
       }
     };
