@@ -21,10 +21,13 @@
 #include "../utils.hpp"
 
 Model::Model()
-    : _renderingProgram(std::make_unique<Program>(
-          Utils::Path::getShaderPath("shader.vert"), Utils::Path::getShaderPath("shader.frag"),
-          Utils::Path::getShaderPath("shader.geom"), Utils::Path::getShaderPath("shader.tesc"),
-          Utils::Path::getShaderPath("shader.tese"))),
+    : _renderingProgram(std::make_unique<Program>(Utils::Path::getShaderPath("lighting.vert"),
+                                                  Utils::Path::getShaderPath("lighting.frag"),
+                                                  Utils::Path::getShaderPath("lighting.geom"), "", "")),
+      // : _renderingProgram(std::make_unique<Program>(
+      //       Utils::Path::getShaderPath("shader.vert"), Utils::Path::getShaderPath("shader.frag"),
+      //       Utils::Path::getShaderPath("shader.geom"), Utils::Path::getShaderPath("shader.tesc"),
+      //       Utils::Path::getShaderPath("shader.tese"))),
       _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
   _mesh.request_vertex_status();
   _mesh.request_edge_status();
@@ -225,13 +228,15 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
     for (const unsigned int i : *_selectedID)
       first.push_back(static_cast<int>(i * 3));
     std::vector<GLsizei> count(_selectedID->size(), 3);
-    glMultiDrawArrays(GL_PATCHES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
+    // glMultiDrawArrays(GL_PATCHES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
+    glMultiDrawArrays(GL_TRIANGLES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
 
     _renderingProgram->setInt("isRenderSelect", false);
   }
 
   if (!renderSelectedOnly) {
-    glDrawArrays(GL_PATCHES, 0, _elementAmount);
+    // glDrawArrays(GL_PATCHES, 0, _elementAmount);
+    glDrawArrays(GL_TRIANGLES, 0, _elementAmount);
   }
 
   unUse();

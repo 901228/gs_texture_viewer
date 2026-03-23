@@ -47,7 +47,7 @@ private:
 
 private:
   glm::vec3 _lightDir{0, -1, 0};
-  float _lightIntensity = 1.0f;
+  float _lightIntensity = 0.5f;
 };
 
 #endif // !MODEL_PANEL_HPP
