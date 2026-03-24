@@ -62,3 +62,10 @@ add_library(IconsFont INTERFACE
   IconsFont/IconsFont/IconsLucide.h
 )
 target_include_directories(IconsFont INTERFACE "IconsFont/")
+
+add_library(marching_cube
+  MarchingCube/MarchingCubeCpp/MC.h
+  MarchingCube/MarchingCubeCpp/noise.h
+  MarchingCube/MarchingCube.cpp
+)
+target_include_directories(marching_cube PUBLIC "MarchingCube/")

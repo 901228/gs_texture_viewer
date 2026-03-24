@@ -31,3 +31,6 @@
 [submodule "extern/magic_enum"]
 	path = extern/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
+[submodule "extern/MarchingCube/MarchingCubeCpp"]
+	path = extern/MarchingCube/MarchingCubeCpp
+	url = https://github.com/aparis69/MarchingCubeCpp
