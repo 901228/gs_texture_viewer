@@ -1,21 +1,34 @@
 #include "geodesic_gs_model.hpp"
-#include "utils/logger.hpp"
+#include "imgui.h"
+#include "utils/mesh/geodesic_splines.hpp"
+#include <cuda_runtime_api.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/component_wise.hpp>
 
 #include "ply.hpp"
 #include "utils/mesh/solve_uv.hpp"
+#include "utils/utils.hpp"
 
+#include "rasterizer/geodesics.hpp"
 #include "rasterizer/rasterizer.hpp"
 
 GeodesicGaussianModel::GeodesicGaussianModel(const char *plyPath, int sh_degree, int device)
     : GaussianModel(sh_degree, device) {
 
   _loadPly(plyPath);
+
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * _lastW * _lastH));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_inverse_colmap_view_cuda, sizeof(glm::mat4)));
 }
 
-GeodesicGaussianModel::~GeodesicGaussianModel() {}
+GeodesicGaussianModel::~GeodesicGaussianModel() {
+
+  cudaFree(_last_points_cuda);
+  cudaFree(_mask_cuda);
+  cudaFree(_colmap_proj_view_cuda);
+}
 
 std::tuple<std::vector<Pos>, std::vector<Rot>, std::vector<Scale>, std::vector<float>>
 GeodesicGaussianModel::_loadPly(const char *plyPath) {
@@ -38,14 +51,38 @@ bool GeodesicGaussianModel::resizeBuffer(int width, int height) {
 
   cudaFree(_pick_depth_cuda);
   cudaFree(_pick_T_cuda);
+  cudaFree(_mask_cuda);
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_pick_depth_cuda, sizeof(float) * _lastW * _lastH));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_pick_T_cuda, sizeof(float) * _lastW * _lastH));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_mask_cuda, sizeof(CudaRasterizer::PixelMask) * _lastW * _lastH));
 
   return true;
 }
 
+void GeodesicGaussianModel::uploadColmapViewPorjMatrix(const Camera &camera) const {
+
+  // Convert view and projection to target coordinate system
+  glm::mat4 view_mat{camera.viewMatrix()};
+  glm::mat4 proj_view_mat = camera.projectionMatrix() * view_mat;
+  flipRow(view_mat, 1);
+  flipRow(view_mat, 2);
+  flipRow(proj_view_mat, 1);
+  glm::mat4 inverse_view_mat = glm::inverse(view_mat);
+
+  CUDA_SAFE_CALL(
+      cudaMemcpy(_colmap_view_cuda, glm::value_ptr(view_mat), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(_colmap_proj_view_cuda, glm::value_ptr(proj_view_mat), sizeof(glm::mat4),
+                            cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(_inverse_colmap_view_cuda, glm::value_ptr(inverse_view_mat), sizeof(glm::mat4),
+                            cudaMemcpyHostToDevice));
+}
+
 void GeodesicGaussianModel::render(const Camera &camera, const int &width, const int &height,
-                                   const glm::vec3 &clearColor, float *image_cuda) const {
+                                   const glm::vec3 &clearColor, float *image_cuda,
+                                   TextureEditor &textureEditor,
+                                   CudaRasterizer::MaskCullingMode maskCullingMode,
+                                   CudaRasterizer::Light light) const {
 
   CUDA_SAFE_CALL_ALWAYS(
       cudaMemcpy(_background_cuda, glm::value_ptr(clearColor), sizeof(glm::vec3), cudaMemcpyHostToDevice));
@@ -59,16 +96,27 @@ void GeodesicGaussianModel::render(const Camera &camera, const int &width, const
   CUDA_SAFE_CALL(
       cudaMemcpy(_cam_pos_cuda, glm::value_ptr(camera.eye()), sizeof(glm::vec3), cudaMemcpyHostToDevice));
 
+  // render selection
+  CUDA_SAFE_CALL(CudaRasterizer::makeGeodesicsMask(
+      _pick_depth_cuda, _pick_T_cuda, _logMap.pts3d_cuda(), _logMap.nPts(), _logMap.uvs_cuda(),
+      _logMap.gridData_cuda(), _logMap.gridOffsets_cuda(), _logMap.gridRes(),
+      {_logMap.gridMin().x, _logMap.gridMin().y, _logMap.gridMin().z}, _logMap.cellSize(), _geodesicRadius,
+      _last_points_cuda, GeodesicSplines::settings.m, _colmap_proj_view_cuda, width, height,
+      _inverse_colmap_view_cuda, tan_fovx, tan_fovy, _model_basecolor_map_cuda, _model_normal_map_cuda,
+      _model_height_map_cuda, _mask_cuda));
+
   // Rasterize
   int *rects = _fastCulling ? _rect_cuda : nullptr;
   float *boxmin = _cropping ? (float *)&_boxmin : nullptr;
   float *boxmax = _cropping ? (float *)&_boxmax : nullptr;
-  CUDA_SAFE_CALL(CudaRasterizer::forward(_geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount,
-                                         _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda,
-                                         _shs_cuda, nullptr, _opacity_cuda, _scale_cuda, _scalingModifier,
-                                         _rot_cuda, nullptr, _colmap_view_cuda, _colmap_proj_view_cuda,
-                                         _cam_pos_cuda, tan_fovx, tan_fovy, false, image_cuda, _antialiasing,
-                                         nullptr, rects, boxmin, boxmax, _pick_depth_cuda, _pick_T_cuda));
+  CudaRasterizer::TextureOption textureOption{textureEditor.scale(), Utils::toFloat2(textureEditor.offset()),
+                                              textureEditor.theta(), maskCullingMode};
+  CUDA_SAFE_CALL(CudaRasterizer::forward(
+      _geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount, _sh_degree, MAX_SH_COEFF,
+      _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
+      _scalingModifier, _rot_cuda, nullptr, _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda,
+      tan_fovx, tan_fovy, false, image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _pick_depth_cuda,
+      _pick_T_cuda, _renderingMode, _mask_cuda, _threshold, textureOption));
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
@@ -77,7 +125,22 @@ void GeodesicGaussianModel::render(const Camera &camera, const int &width, const
   }
 }
 
-void GeodesicGaussianModel::controls() { GaussianModel::controls(); }
+void GeodesicGaussianModel::controls() {
+
+  ImGui::SliderFloat("isosurface threshold", &threshold, 1.0f, 10.0f);
+  ImGui::NewLine();
+
+  GaussianModel::controls();
+
+  ImGui::NewLine();
+  ImGui::Separator();
+  ImGui::NewLine();
+
+  ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
+               Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
+
+  ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.02f, "%.4f");
+}
 
 std::optional<glm::vec3> GeodesicGaussianModel::hit(const Camera &camera, const glm::vec2 &ndcPos) const {
 
@@ -116,7 +179,6 @@ bool GeodesicGaussianModel::select(const glm::vec3 &hitPoint, int radius, bool i
     return false;
 
   _lastHitPos = hitPoint;
-  GeodesicSplines::debugStruct.center = hitPoint;
   return true;
 }
 
@@ -127,18 +189,21 @@ void GeodesicGaussianModel::solve(SolveUV::SolvingMode solvingMode, std::optiona
   if (!hitPoint.has_value())
     return;
 
-  SolveUV::SolveGeodesic(hitPoint.value(), *this);
+  std::tie(_logMap, _lastPoints, _geodesicRadius) = SolveUV::SolveGeodesic(hitPoint.value(), *this);
+  _logMap.upload();
+
+  cudaFree(_last_points_cuda);
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_last_points_cuda, sizeof(glm::vec3) * _lastPoints.size()));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_last_points_cuda, _lastPoints.data(),
+                                   sizeof(glm::vec3) * _lastPoints.size(), cudaMemcpyHostToDevice));
 }
 
 void GeodesicGaussianModel::updateTextureInfo(const TextureEditor &textureEditor) {
-  // TODO: update texture info
-}
 
-static glm::mat3 quatToMat(const Rot &r) {
-  float w = r.rot[0], x = r.rot[1], y = r.rot[2], z = r.rot[3];
-  return glm::mat3(1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y), 2 * (x * y - w * z),
-                   1 - 2 * (x * x + z * z), 2 * (y * z + w * x), 2 * (x * z + w * y), 2 * (y * z - w * x),
-                   1 - 2 * (x * x + y * y));
+  auto selectedTexture = textureEditor.selectedPBR();
+  _model_basecolor_map_cuda = selectedTexture != nullptr ? selectedTexture->basecolor().cudaTextureId() : 0;
+  _model_normal_map_cuda = selectedTexture != nullptr ? selectedTexture->normal().cudaTextureId() : 0;
+  _model_height_map_cuda = selectedTexture != nullptr ? selectedTexture->height().cudaTextureId() : 0;
 }
 
 void GeodesicGaussianModel::buildGrid(const std::vector<Pos> &pos, const std::vector<Rot> &rot,
@@ -153,7 +218,7 @@ void GeodesicGaussianModel::buildGrid(const std::vector<Pos> &pos, const std::ve
     e.alpha = opacity[k];
 
     // Σ = R * S² * R^T，Σ^{-1} = R * S^{-2} * R^T
-    glm::mat3 R = quatToMat(rot[k]);
+    glm::mat3 R = glm::mat3(glm::mat4(glm::quat(rot[k].rot[0], rot[k].rot[1], rot[k].rot[2], rot[k].rot[3])));
     glm::vec3 s = {scale[k].scale[0], scale[k].scale[1], scale[k].scale[2]};
 
     // S^{-2} diagonal
@@ -176,8 +241,6 @@ void GeodesicGaussianModel::buildGrid(const std::vector<Pos> &pos, const std::ve
 
 void GeodesicGaussianModel::_buildGrid() {
 
-  WARN("FAQ build grid");
-
   glm::vec3 bmin(1e9f), bmax(-1e9f);
   for (auto &g : gaussians) {
     bmin = glm::min(bmin, g.pos - g.maxEigenvalue * 3.f);
@@ -185,7 +248,9 @@ void GeodesicGaussianModel::_buildGrid() {
   }
   gridMin = bmin - 1e-4f;
   cellSize = glm::compMax(bmax - bmin) / gridRes;
-  grid.assign(gridRes * gridRes * gridRes, {});
+
+  int nCells = gridRes * gridRes * gridRes;
+  grid.assign(nCells, {});
 
   for (int k = 0; k < (int)gaussians.size(); ++k) {
     const auto &g = gaussians[k];
@@ -268,7 +333,8 @@ const glm::vec3 GeodesicGaussianModel::project(const glm::vec3 &x) {
       break;
 
     // Newton step: x_{i+1} = x_i - f(x_i)/||∇f||² * ∇f
-    xi -= (f / gf2) * gf;
+    float step = glm::clamp(f / gf2, -0.05f, 0.05f);
+    xi -= step * gf;
 
     if (std::abs(f) < 1e-5f)
       break;
@@ -278,11 +344,40 @@ const glm::vec3 GeodesicGaussianModel::project(const glm::vec3 &x) {
 
 const glm::vec3 GeodesicGaussianModel::normal(const glm::vec3 &x) {
 
-  glm::vec3 g = grad(x);
+  // glm::vec3 g = grad(x);
+  // float len = glm::length(g);
+
+  // if (len < 1e-8f) {
+  //   // fallback: use the direction towards the center of the nearest Gaussian
+  //   std::vector<int> nearby;
+  //   queryNearby(x, nearby);
+  //   float bestDist = 1e9f;
+  //   glm::vec3 bestDir(0, 1, 0);
+  //   for (int k : nearby) {
+  //     glm::vec3 d = x - gaussians[k].pos;
+  //     float dist = glm::length(d);
+  //     if (dist < bestDist && dist > 1e-6f) {
+  //       bestDist = dist;
+  //       bestDir = d / dist;
+  //     }
+  //   }
+  //   return bestDir;
+  // }
+
+  // // f = σ - threshold，∇f is the direction towards density increase (towards inside)
+  // // surface normal points outwards, so take negative
+  // return -g / len;
+
+  float eps = cellSize * 0.5f; // set eps to cellSize / 2
+
+  // use finite differences to compute the gradient
+  float dx = eval(x + glm::vec3(eps, 0, 0)) - eval(x - glm::vec3(eps, 0, 0));
+  float dy = eval(x + glm::vec3(0, eps, 0)) - eval(x - glm::vec3(0, eps, 0));
+  float dz = eval(x + glm::vec3(0, 0, eps)) - eval(x - glm::vec3(0, 0, eps));
+
+  glm::vec3 g(dx, dy, dz);
   float len = glm::length(g);
   if (len < 1e-8f)
     return glm::vec3(0, 1, 0);
-  // f = σ - threshold，∇f 指向 density 增加方向（朝內）
-  // 表面法線朝外，所以取負號
   return -g / len;
 }

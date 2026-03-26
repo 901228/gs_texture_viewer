@@ -30,17 +30,23 @@ find_package(CUDAToolkit REQUIRED)
 add_library(GAUSSIAN_LIB STATIC
   rasterizer/defines.hpp
 
-  rasterizer/forward.hpp
+  rasterizer/forward.cuh
   rasterizer/forward.cu
   rasterizer/auxiliary.h
-  rasterizer/rasterizer.cu
   rasterizer/rasterizer.hpp
+  rasterizer/rasterizer.cu
 
-  rasterizer/texture_rasterizer.cu
   rasterizer/texture_rasterizer.hpp
+  rasterizer/texture_rasterizer.cu
 
-  rasterizer/vector/matrix.hpp
-  rasterizer/vector/vector.hpp
+  rasterizer/geodesics.hpp
+  rasterizer/geodesics.cu
+
+  rasterizer/gsm/base.cuh
+  rasterizer/gsm/matrix.cuh
+  rasterizer/gsm/vector.cuh
+  rasterizer/gsm/vector_operator.cuh
+  rasterizer/gsm/gsm.cuh
 )
 
 # CUDA Separable Compilation

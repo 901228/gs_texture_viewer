@@ -207,6 +207,8 @@ void GaussianModel::controls() {
   }
 }
 
+glm::vec3 GaussianModel::boxMin() const { return _boxmin; }
+glm::vec3 GaussianModel::boxMax() const { return _boxmax; }
 glm::vec3 GaussianModel::center() const { return Utils::center(_boxmin, _boxmax); }
 GaussianGLData &GaussianModel::gaussianGLData() const { return *_gsGLData; }
 int GaussianModel::count() const { return gsCount; }

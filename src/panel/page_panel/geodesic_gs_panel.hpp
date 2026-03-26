@@ -8,6 +8,9 @@
 #include "page_panel.hpp"
 
 #include "gaussian/view/gs_view.hpp"
+#include "utils/mesh/isosurface.hpp"
+
+#include "rasterizer/defines.hpp"
 
 class TextureEditor;
 class GeodesicGaussianModel;
@@ -35,6 +38,7 @@ private:
   // gaussian
   GaussianView::RenderingMode currMode = GaussianView::RenderingMode::Splats;
   std::unique_ptr<GeodesicGaussianModel> _model;
+  CudaRasterizer::MaskCullingMode _maskCullingMode = CudaRasterizer::MaskCullingMode::Mixed_ND;
 
 private:
   // texture
@@ -42,6 +46,11 @@ private:
 
   glm::vec3 _lightDir{0, -1, 0};
   float _lightIntensity = 1.0f;
+
+private:
+  enum class ViewMode : int { Model, Isosurface };
+  ViewMode _viewMode = ViewMode::Model;
+  Isosurface::MarchingCubesResult _mc;
 };
 
 #endif // !GEODESIC_GS_TEXTURE_PANEL_HPP

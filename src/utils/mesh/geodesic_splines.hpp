@@ -6,34 +6,62 @@
 
 #include <ImGui/imgui.h>
 
+namespace GeodesicSplines {
+
 namespace MapInterpolation {
 struct PeriodicSpline;
 }
 
 namespace LogarithmicMap {
 
-struct LogMapTable {
-  std::vector<glm::vec2> uvs;   // tangent space coords
-  std::vector<glm::vec3> pts3d; // corresponding 3D positions
+class LogMapTable {
+private:
+  std::vector<glm::vec2> uvs{};   // tangent space coords
+  std::vector<glm::vec3> pts3d{}; // corresponding 3D positions
 
   // Grid Acceleration
-  int gridRes = 32;
-  float cellSize;
-  glm::vec3 gridMin;
-  std::vector<std::vector<int>> grid; // gridRes^3
+  int _gridRes = 32;
+  float _cellSize = 0.0f;
+  glm::vec3 _gridMin{};
+  std::vector<std::vector<int>> _grid{}; // gridRes^3
 
   void buildGrid();
+
+public:
+  LogMapTable();
+  ~LogMapTable();
 
   void build(const std::vector<MapInterpolation::PeriodicSpline> &isolineSplines, int n, float h,
              const glm::vec3 &origin, int numSamples = 5000);
 
   // given a 3D point, find the corresponding UV
   glm::vec2 query(const glm::vec3 &p) const;
+
+private:
+  float *_pts3d_cuda = nullptr;
+  float *_uvs_cuda = nullptr;
+
+  // flattened grid
+  int *_gridData_cuda = nullptr;    // continuously store indices of each cell
+  int *_gridOffsets_cuda = nullptr; // gridOffsets[i] = start position of the i-th cell
+
+public:
+  void upload();
+  void free();
+
+  inline const size_t nPts() const { return pts3d.size(); }
+  inline const float *pts3d_cuda() const { return _pts3d_cuda; }
+  inline const float *uvs_cuda() const { return _uvs_cuda; }
+
+  inline const int *gridData_cuda() const { return _gridData_cuda; }
+  inline const int *gridOffsets_cuda() const { return _gridOffsets_cuda; }
+
+  inline const int gridRes() const { return _gridRes; }
+  inline const float cellSize() const { return _cellSize; }
+  inline const glm::vec3 gridMin() const { return _gridMin; }
 };
 
 } // namespace LogarithmicMap
-
-namespace GeodesicSplines {
 
 class Implicit {
 public:
@@ -78,26 +106,6 @@ struct DebugStruct {
       drawList->AddCircleFilled(pos + p, 4.f, IM_COL32(0, 255, 150, 255));
     }
 
-    // for (const auto &qm : Q) {
-    //   int total = static_cast<int>(qm.size());
-    //   for (int j = 0; j < total; ++j) {
-    //     auto [show, p] = project(qm[j], projview, width, height, flip_y);
-    //     if (!show)
-    //       continue;
-
-    //     float t = static_cast<float>(j) / std::max(total - 1, 1);
-
-    //     // 近點（t=0）青色 → 遠點（t=1）紅色，可自行調整
-    //     uint8_t r = static_cast<uint8_t>(t * 255);
-    //     uint8_t g = static_cast<uint8_t>((1.f - t) * 255);
-    //     uint8_t b = 150;
-    //     uint8_t a = 255;
-    //     ImU32 color = IM_COL32(r, g, b, a);
-
-    //     drawList->AddCircleFilled(pos + p, 2.f, color);
-    //   }
-    // }
-
     for (int i = 0; i < (int)Q.size(); ++i) {
       auto &curve = Q[i];
       int total = (int)curve.size();
@@ -120,6 +128,17 @@ struct DebugStruct {
           drawList->AddLine(pos + p0, pos + p1, color, 2.f);
       }
     }
+
+    // for (int i = 0; i < Q.size(); i++) {
+
+    //   auto &curve = Q[i].back();
+    //   auto &next_curve = i + 1 < Q.size() ? Q[i + 1].back() : Q[0].back();
+
+    //   auto [show0, p0] = project(curve, projview, width, height, flip_y);
+    //   auto [show1, p1] = project(next_curve, projview, width, height, flip_y);
+    //   if (show0 && show1)
+    //     drawList->AddLine(pos + p0, pos + p1, IM_COL32(255, 0, 150, 255), 2.f);
+    // }
   }
 
 private:
@@ -133,7 +152,7 @@ private:
       return std::pair(false, ImVec2());
     glm::vec3 ndc = glm::vec3(clip) / clip.w;
 
-    // 背後的點不顯示
+    // if the point is behind the camera, cull it
     if (ndc.z < -1.f || ndc.z > 1.f)
       return std::pair(false, ImVec2());
 
@@ -148,7 +167,8 @@ private:
 };
 inline DebugStruct debugStruct;
 
-std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &model);
+std::tuple<LogarithmicMap::LogMapTable, std::vector<glm::vec3>, float> Solve(glm::vec3 center,
+                                                                             Implicit &model);
 
 } // namespace GeodesicSplines
 

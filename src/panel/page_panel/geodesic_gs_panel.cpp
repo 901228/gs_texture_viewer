@@ -7,8 +7,10 @@
 #include <ImGui/imgui.h>
 
 #include "gaussian/model/geodesic_gs_model.hpp"
+#include "main_window.hpp"
 #include "utils/camera/trackball_camera_three.hpp"
 #include "utils/imgui/gizmo_arrow.hpp"
+#include "utils/imgui/opengl.hpp"
 #include "utils/imgui/sidebar.hpp"
 #include "utils/mesh/geodesic_splines.hpp"
 #include "utils/mesh/model.hpp"
@@ -28,6 +30,9 @@ void GeodesicTextureGSPanel::_attach() {
   camera->setCenter(_model->center());
 
   _textureEditor = std::make_unique<TextureEditor>(*_model, true);
+
+  _mc = Isosurface::extractIsosurface(*_model, _model->boxMin(), _model->boxMax(), 64);
+  Isosurface::IsosurfaceRenderer::getInstance().upload(_mc);
 }
 
 void GeodesicTextureGSPanel::_detach() {}
@@ -43,39 +48,57 @@ void GeodesicTextureGSPanel::_render() {
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImDrawList *drawList;
 
-  if (ImGui::BeginChild(std::format("{} Splats View", name()).c_str())) {
+  if (_viewMode == ViewMode::Model) {
+    if (ImGui::BeginChild(std::format("{} Splats View", name()).c_str())) {
 
-    // render GS
-    unsigned int textureId = GaussianView::getInstance().render(
-        currMode, *camera, static_cast<int>(_width), static_cast<int>(_height), {1.0f, 1.0f, 1.0f}, *_model,
-        [this](float *image_cuda) {
-          auto selectedTexture = _textureEditor->selectedTexture();
-          _model->resizeBuffer(static_cast<int>(_width), static_cast<int>(_height));
-          _model->render(*camera, static_cast<int>(_width), static_cast<int>(_height), {1.0f, 1.0f, 1.0f},
-                         image_cuda);
-        });
+      // render GS
+      unsigned int textureId = GaussianView::getInstance().render(
+          currMode, *camera, static_cast<int>(_width), static_cast<int>(_height), {1.0f, 1.0f, 1.0f}, *_model,
+          [this](float *image_cuda) {
+            auto selectedTexture = _textureEditor->selectedTexture();
+            _model->resizeBuffer(static_cast<int>(_width), static_cast<int>(_height));
+            _model->render(*camera, static_cast<int>(_width), static_cast<int>(_height), {1.0f, 1.0f, 1.0f},
+                           image_cuda, *_textureEditor, _maskCullingMode,
+                           {Utils::toFloat3(_lightDir), {1.0f, 1.0f, 1.0f}, _lightIntensity});
+          });
 
-    ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)textureId, ImVec2(pos.x, pos.y),
-                                         ImVec2(pos.x + _width, pos.y + _height), ImVec2(0, 1), ImVec2(1, 0));
+      ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)textureId, ImVec2(pos.x, pos.y),
+                                           ImVec2(pos.x + _width, pos.y + _height), ImVec2(0, 1),
+                                           ImVec2(1, 0));
 
-    _textureEditor->handleBrushInput(*camera, _width, _height);
+      _textureEditor->handleBrushInput(*camera, _width, _height);
 
-    camera->handleInput(pos);
+      camera->handleInput(pos);
 
-    drawList = ImGui::GetWindowDrawList();
+      drawList = ImGui::GetWindowDrawList();
+    }
+    ImGui::EndChild();
+  } else if (_viewMode == ViewMode::Isosurface) {
+    if (ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag)) {
+
+      float backgroundColor = 1.0f;
+      static const GLfloat background[] = {backgroundColor, backgroundColor, backgroundColor, 1.0f};
+      static const GLfloat one = 1.0f;
+
+      glClearColor(backgroundColor, backgroundColor, backgroundColor, 1);
+      // NOLINTNEXTLINE(hicpp-signed-bitwise)
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glClearBufferfv(GL_COLOR, 0, background);
+      glClearBufferfv(GL_DEPTH, 0, &one);
+
+      Isosurface::IsosurfaceRenderer::getInstance().render(*camera, _lightDir);
+
+      camera->handleInput(pos);
+
+      drawList = ImGui::GetWindowDrawList();
+    }
+    ImGui::EndOpenGL();
   }
-  ImGui::EndChild();
 
   if (_textureEditor->isGeodesic() && GeodesicSplines::debugStruct.show) {
 
     glm::mat4 proj_view_mat = camera->projectionMatrix() * camera->viewMatrix();
     GaussianModel::flipRow(proj_view_mat, 1);
-
-    // glm::mat4 colmap_view = camera->viewMatrix();
-    // GaussianModel::flipRow(colmap_view, 1);
-    // GaussianModel::flipRow(colmap_view, 2);
-
-    // glm::mat4 proj_view_mat = camera->projectionMatrix() * colmap_view;
 
     GeodesicSplines::debugStruct.draw(drawList, pos, proj_view_mat, _width, _height, false);
   }
@@ -141,6 +164,17 @@ void GeodesicTextureGSPanel::_controls() {
 
     if (ImGui::BeginSideBarItem("render##gs_texture_panel_sidebar", Model::icon)) {
 
+      ImGui::Combo("View Mode", reinterpret_cast<int *>(&_viewMode),
+                   Utils::enumToImGuiCombo<ViewMode>().c_str());
+      if (ImGui::Button("Recalculate isosurface")) {
+        _mc = Isosurface::extractIsosurface(*_model, _model->boxMin(), _model->boxMax(), 64);
+        Isosurface::IsosurfaceRenderer::getInstance().upload(_mc);
+      }
+      if (ImGui::Button("Recalculate isosurface fine")) {
+        _mc = Isosurface::extractIsosurface(*_model, _model->boxMin(), _model->boxMax(), 128);
+        Isosurface::IsosurfaceRenderer::getInstance().upload(_mc);
+      }
+
       _model->controls();
 
       ImGui::EndSideBarItem();
@@ -162,6 +196,10 @@ void GeodesicTextureGSPanel::_controls() {
     }
 
     if (ImGui::BeginSideBarItem("textures##gs_texture_panel_sidebar", TextureEditor::icon)) {
+
+      ImGui::Combo("Mask Culling Mode", reinterpret_cast<int *>(&_maskCullingMode),
+                   Utils::enumToImGuiCombo<CudaRasterizer::MaskCullingMode>().c_str());
+      ImGui::NewLine();
 
       _textureEditor->controls();
 

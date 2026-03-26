@@ -15,7 +15,7 @@
 
 #include "auxiliary.h"
 #include "config.hpp"
-#include "forward.hpp"
+#include "forward.cuh"
 
 template <typename T> static void obtain(char *&chunk, T *&ptr, std::size_t count, std::size_t alignment) {
   std::size_t offset = (reinterpret_cast<std::uintptr_t>(chunk) + alignment - 1) & ~(alignment - 1);
@@ -217,10 +217,10 @@ int CudaRasterizer::forward(
   }
 
   // Run preprocessing per-Gaussian (transformation, bounding, conversion of SHs to RGB)
-  FORWARD::preprocess(P, D, M, means3D, (rs::vec3 *)scales, scale_modifier, (rs::vec4 *)rotations, opacities,
-                      shs, geomState.clamped, cov3D_precomp, colors_precomp, viewmatrix, projviewmatrix,
-                      (rs::vec3 *)cam_pos, width, height, focal_x, focal_y, tan_fovx, tan_fovy, radii,
-                      geomState.means2D, geomState.depths, geomState.cov3D, geomState.rgb,
+  FORWARD::preprocess(P, D, M, means3D, (gsm::vec3 *)scales, scale_modifier, (gsm::vec4 *)rotations,
+                      opacities, shs, geomState.clamped, cov3D_precomp, colors_precomp, viewmatrix,
+                      projviewmatrix, (gsm::vec3 *)cam_pos, width, height, focal_x, focal_y, tan_fovx,
+                      tan_fovy, radii, geomState.means2D, geomState.depths, geomState.cov3D, geomState.rgb,
                       geomState.conic_opacity, tile_grid, geomState.tiles_touched, prefiltered, (int2 *)rects,
                       minn, maxx, antialiasing);
 

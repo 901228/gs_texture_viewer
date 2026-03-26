@@ -109,8 +109,16 @@ void TextureEditor::renderList() {
 
 void TextureEditor::controls() {
 
-  ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_selectMode),
-               Utils::enumToImGuiCombo<SelectMode>().c_str());
+  if (_solvingMode == SolveUV::SolvingMode::GeodesicSplines) {
+    ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_selectMode),
+                 Utils::enumToImGuiCombo<SelectMode>().c_str());
+  } else {
+    ImGui::BeginDisabled();
+    SelectMode _dummy = SelectMode::Faces;
+    ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_dummy),
+                 Utils::enumToImGuiCombo<SelectMode>().c_str());
+    ImGui::EndDisabled();
+  }
   ImGui::NewLine();
 
   ImGui::SeparatorText("Brush Options");
@@ -153,7 +161,7 @@ void TextureEditor::controls() {
     }
 
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
-      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? std::optional(_hitResult) : std::nullopt);
+      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? _hitResult : std::nullopt);
       _solved = true;
     }
   }
@@ -166,7 +174,7 @@ void TextureEditor::controls() {
 
     if (_autoCalculate && !_solved) {
 
-      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? std::optional(_hitResult) : std::nullopt);
+      _model.solve(_solvingMode, _selectMode == SelectMode::Point ? _hitResult : std::nullopt);
       _solved = true;
     }
 
@@ -334,6 +342,7 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
     bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (isLeftDown || isRightDown) {
+      GeodesicSplines::debugStruct.center = _hitResult.value();
 
       // handle select mesh face
       if (_selectMode == SelectMode::Faces) {

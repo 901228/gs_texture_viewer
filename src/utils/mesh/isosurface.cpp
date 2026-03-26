@@ -36,10 +36,10 @@ MarchingCubesResult extractIsosurface(GeodesicSplines::Implicit &model, glm::vec
   MC::marching_cube(field, N, N, N, mesh);
   delete[] field;
 
-  // Step 3: grid space → world space，並用 grad() 替換法線
+  // Step 3: grid space → world space
   result.vertices.reserve(mesh.vertices.size());
   result.normals.reserve(mesh.vertices.size());
-  result.indices = mesh.indices; // index buffer 直接沿用
+  result.indices = mesh.indices; // ebo index buffer
 
   for (const auto &v : mesh.vertices) {
     // grid space (0..N) → world space
@@ -47,7 +47,9 @@ MarchingCubesResult extractIsosurface(GeodesicSplines::Implicit &model, glm::vec
     glm::vec3 worldPos = bmin + gridPos * step;
     result.vertices.push_back(worldPos);
 
-    result.normals.push_back(model.normal(worldPos));
+    glm::vec3 snapped = model.project(worldPos);
+    result.normals.push_back(model.normal(snapped));
+    // result.normals.push_back(model.normal(worldPos));
   }
 
   return result;
@@ -108,8 +110,17 @@ void IsosurfaceRenderer::upload(const MarchingCubesResult &mc) {
     vdata.push_back(mc.normals[i].z);
   }
 
+  if (vao != 0) {
+    glDeleteVertexArrays(1, &vao);
+  }
   glGenVertexArrays(1, &vao);
+  if (vbo != 0) {
+    glDeleteBuffers(1, &vbo);
+  }
   glGenBuffers(1, &vbo);
+  if (ebo != 0) {
+    glDeleteBuffers(1, &ebo);
+  }
   glGenBuffers(1, &ebo);
 
   glBindVertexArray(vao);

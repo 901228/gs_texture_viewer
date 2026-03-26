@@ -1,5 +1,6 @@
 #include "geodesic_splines.hpp"
 
+#include <cuda_runtime_api.h>
 #include <execution>
 #include <numbers>
 #include <random>
@@ -9,7 +10,12 @@
 
 #include <Eigen/Sparse>
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 #include "../utils.hpp"
+
+namespace GeodesicSplines {
 
 namespace RadialTracing {
 
@@ -309,6 +315,9 @@ glm::vec3 forwardMap(float r, float theta, const std::vector<PeriodicSpline> &is
 
 namespace LogarithmicMap {
 
+LogMapTable::LogMapTable() {}
+LogMapTable::~LogMapTable() { free(); }
+
 void LogMapTable::buildGrid() {
 
   // 計算 pts3d 的 AABB
@@ -317,15 +326,15 @@ void LogMapTable::buildGrid() {
     bmin = glm::min(bmin, p);
     bmax = glm::max(bmax, p);
   }
-  gridMin = bmin;
-  cellSize = glm::compMax(bmax - bmin) / gridRes;
+  _gridMin = bmin;
+  _cellSize = glm::compMax(bmax - bmin) / _gridRes;
 
-  grid.resize(gridRes * gridRes * gridRes);
+  _grid.resize(_gridRes * _gridRes * _gridRes);
   for (int k = 0; k < (int)pts3d.size(); ++k) {
     glm::ivec3 cell =
-        glm::clamp(glm::ivec3((pts3d[k] - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
-    int idx = cell.x + gridRes * (cell.y + gridRes * cell.z);
-    grid[idx].push_back(k);
+        glm::clamp(glm::ivec3((pts3d[k] - _gridMin) / _cellSize), glm::ivec3(0), glm::ivec3(_gridRes - 1));
+    int idx = cell.x + _gridRes * (cell.y + _gridRes * cell.z);
+    _grid[idx].push_back(k);
   }
 }
 
@@ -361,7 +370,8 @@ void LogMapTable::build(const std::vector<MapInterpolation::PeriodicSpline> &iso
 
 glm::vec2 LogMapTable::query(const glm::vec3 &p) const {
 
-  glm::ivec3 cell = glm::clamp(glm::ivec3((p - gridMin) / cellSize), glm::ivec3(0), glm::ivec3(gridRes - 1));
+  glm::ivec3 cell =
+      glm::clamp(glm::ivec3((p - _gridMin) / _cellSize), glm::ivec3(0), glm::ivec3(_gridRes - 1));
 
   float best = 1e18f;
   int bestIdx = 0;
@@ -372,10 +382,10 @@ glm::vec2 LogMapTable::query(const glm::vec3 &p) const {
         glm::ivec3 nb = cell + glm::ivec3(dx, dy, dz);
         if (glm::any(glm::lessThan(nb, glm::ivec3(0))))
           continue;
-        if (glm::any(glm::greaterThanEqual(nb, glm::ivec3(gridRes))))
+        if (glm::any(glm::greaterThanEqual(nb, glm::ivec3(_gridRes))))
           continue;
-        int idx = nb.x + gridRes * (nb.y + gridRes * nb.z);
-        for (int k : grid[idx]) {
+        int idx = nb.x + _gridRes * (nb.y + _gridRes * nb.z);
+        for (int k : _grid[idx]) {
           float d2 = glm::dot(p - pts3d[k], p - pts3d[k]);
           if (d2 < best) {
             best = d2;
@@ -386,11 +396,50 @@ glm::vec2 LogMapTable::query(const glm::vec3 &p) const {
   return uvs[bestIdx];
 }
 
+void LogMapTable::upload() {
+
+  // pts3d / uvs
+  cudaMalloc(&_pts3d_cuda, sizeof(glm::vec3) * pts3d.size());
+  cudaMalloc(&_uvs_cuda, sizeof(glm::vec2) * pts3d.size());
+  cudaMemcpy(_pts3d_cuda, pts3d.data(), sizeof(glm::vec3) * pts3d.size(), cudaMemcpyHostToDevice);
+  cudaMemcpy(_uvs_cuda, uvs.data(), sizeof(glm::vec2) * pts3d.size(), cudaMemcpyHostToDevice);
+
+  // flatten grid
+  int nCells = _gridRes * _gridRes * _gridRes;
+  std::vector<int> offsets(nCells + 1, 0);
+  std::vector<int> counts(nCells);
+  std::vector<int> data{};
+  // int total = offsets[nCells];
+  // std::vector<int> data(total);
+  for (int i = 0; i < nCells; i++) {
+    offsets[i + 1] = offsets[i] + (int)_grid[i].size();
+    counts[i] = (int)_grid[i].size();
+
+    for (int j = 0; j < (int)_grid[i].size(); ++j) {
+      data.emplace_back(_grid[i][j]);
+    }
+  }
+  int total = offsets[nCells];
+
+  cudaMalloc(&_gridData_cuda, sizeof(int) * total);
+  cudaMemcpy(_gridData_cuda, data.data(), sizeof(int) * total, cudaMemcpyHostToDevice);
+  cudaMalloc(&_gridOffsets_cuda, sizeof(int) * (nCells + 1));
+  cudaMemcpy(_gridOffsets_cuda, offsets.data(), sizeof(int) * (nCells + 1), cudaMemcpyHostToDevice);
+}
+
+void LogMapTable::free() {
+
+  cudaFree(_pts3d_cuda);
+  cudaFree(_uvs_cuda);
+
+  cudaFree(_gridData_cuda);
+  cudaFree(_gridOffsets_cuda);
+}
+
 } // namespace LogarithmicMap
 
-namespace GeodesicSplines {
-
-std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &model) {
+std::tuple<LogarithmicMap::LogMapTable, std::vector<glm::vec3>, float> Solve(glm::vec3 center,
+                                                                             Implicit &model) {
 
   Utils::Timer::Timer t("Geodesic Splines Solve");
 
@@ -422,6 +471,7 @@ std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &
   // Q[i][j] = radial curve i, step j
   std::vector<std::vector<RadialTracing::TracedPoint>> Q(settings.m,
                                                          std::vector<RadialTracing::TracedPoint>(N + 1));
+  std::vector<glm::vec3> lastPoints(settings.m);
   {
     Utils::Timer::Timer t("Radial Tracing");
 
@@ -470,6 +520,7 @@ std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &
         Q[i][j + 1] = tp_next;
         debugStruct.Q[i].push_back(tp_next.pos);
         debugStruct.T[i].push_back(tp_next.tangent);
+        lastPoints[i] = tp_next.pos;
       });
 
       // =========================================
@@ -522,7 +573,7 @@ std::pair<LogarithmicMap::LogMapTable, float> Solve(glm::vec3 center, Implicit &
     logMap.build(isolineSplines, N, settings.h, p);
   }
 
-  return std::make_pair(logMap, N * settings.h);
+  return std::make_tuple(logMap, lastPoints, N * settings.h);
 }
 
 } // namespace GeodesicSplines

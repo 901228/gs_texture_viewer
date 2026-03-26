@@ -1,4 +1,4 @@
-#include "forward.hpp"
+#include "forward.cuh"
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -7,21 +7,21 @@
 
 #include "auxiliary.h"
 #include "rasterizer/defines.hpp"
-#include "vector/matrix.hpp"
-namespace rs = rasterizer;
+
+#include "gsm/gsm.cuh"
 
 // Forward method for converting the input spherical harmonics
 // coefficients of each Gaussian to a simple RGB color.
-__device__ rs::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const rs::vec3 *means,
-                                       rs::vec3 campos, const float *shs, bool *clamped) {
+__device__ gsm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const gsm::vec3 *means,
+                                        gsm::vec3 campos, const float *shs, bool *clamped) {
   // The implementation is loosely based on code for
   // "Differentiable Point-Based Radiance Fields for
   // Efficient View Synthesis" by Zhang et al. (2022)
-  rs::vec3 dir = means[idx] - campos;
+  gsm::vec3 dir = means[idx] - campos;
   dir.normalize();
 
-  rs::vec3 *sh = ((rs::vec3 *)shs) + idx * max_coeffs;
-  rs::vec3 result = SH_C0 * rs::vec3(sh[0]);
+  gsm::vec3 *sh = ((gsm::vec3 *)shs) + idx * max_coeffs;
+  gsm::vec3 result = SH_C0 * gsm::vec3(sh[0]);
 
   if (deg > 0) {
     float x = dir.x;
@@ -52,12 +52,12 @@ __device__ rs::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const r
   clamped[3 * idx + 0] = (result.x < 0);
   clamped[3 * idx + 1] = (result.y < 0);
   clamped[3 * idx + 2] = (result.z < 0);
-  return rs::max(result, 0.0f);
+  return gsm::max(result, 0.0f);
 }
 
 // Forward version of 2D covariance matrix computation
-__device__ float3 computeCov2D(rs::vec3 &p_view, float focal_x, float focal_y, float tan_fovx, float tan_fovy,
-                               const float *cov3D, const rs::mat4 &viewmatrix) {
+__device__ float3 computeCov2D(gsm::vec3 &p_view, float focal_x, float focal_y, float tan_fovx,
+                               float tan_fovy, const float *cov3D, const gsm::mat4 &viewmatrix) {
   // The following models the steps outlined by equations 29
   // and 31 in "EWA Splatting" (Zwicker et al., 2002).
   // Additionally considers aspect / scaling of viewport.
@@ -66,22 +66,22 @@ __device__ float3 computeCov2D(rs::vec3 &p_view, float focal_x, float focal_y, f
   const float limy = 1.3f * tan_fovy;
   const float txtz = p_view.x / p_view.z;
   const float tytz = p_view.y / p_view.z;
-  p_view.x = rs::min(limx, rs::max(-limx, txtz)) * p_view.z;
-  p_view.y = rs::min(limy, rs::max(-limy, tytz)) * p_view.z;
+  p_view.x = gsm::min(limx, gsm::max(-limx, txtz)) * p_view.z;
+  p_view.y = gsm::min(limy, gsm::max(-limy, tytz)) * p_view.z;
 
-  rs::mat3 J = rs::mat3(focal_x / p_view.z, 0.0f, -(focal_x * p_view.x) / (p_view.z * p_view.z), 0.0f,
-                        focal_y / p_view.z, -(focal_y * p_view.y) / (p_view.z * p_view.z), 0, 0, 0);
+  gsm::mat3 J = gsm::mat3(focal_x / p_view.z, 0.0f, -(focal_x * p_view.x) / (p_view.z * p_view.z), 0.0f,
+                          focal_y / p_view.z, -(focal_y * p_view.y) / (p_view.z * p_view.z), 0, 0, 0);
 
-  rs::mat3 W =
-      rs::mat3(viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0], viewmatrix[0][1], viewmatrix[1][1],
-               viewmatrix[2][1], viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
+  gsm::mat3 W =
+      gsm::mat3(viewmatrix[0][0], viewmatrix[1][0], viewmatrix[2][0], viewmatrix[0][1], viewmatrix[1][1],
+                viewmatrix[2][1], viewmatrix[0][2], viewmatrix[1][2], viewmatrix[2][2]);
 
-  rs::mat3 T = W * J;
+  gsm::mat3 T = W * J;
 
-  rs::mat3 Vrk =
-      rs::mat3(cov3D[0], cov3D[1], cov3D[2], cov3D[1], cov3D[3], cov3D[4], cov3D[2], cov3D[4], cov3D[5]);
+  gsm::mat3 Vrk =
+      gsm::mat3(cov3D[0], cov3D[1], cov3D[2], cov3D[1], cov3D[3], cov3D[4], cov3D[2], cov3D[4], cov3D[5]);
 
-  rs::mat3 cov = T.transpose() * Vrk.transpose() * T;
+  gsm::mat3 cov = T.transpose() * Vrk.transpose() * T;
 
   return {float(cov[0][0]), float(cov[0][1]), float(cov[1][1])};
 }
@@ -89,29 +89,29 @@ __device__ float3 computeCov2D(rs::vec3 &p_view, float focal_x, float focal_y, f
 // Forward method for converting scale and rotation properties of each
 // Gaussian to a 3D covariance matrix in world space. Also takes care
 // of quaternion normalization.
-__device__ void computeCov3D(const rs::vec3 scale, float mod, const rs::vec4 rot, float *cov3D) {
+__device__ void computeCov3D(const gsm::vec3 scale, float mod, const gsm::vec4 rot, float *cov3D) {
   // Create scaling matrix
-  rs::mat3 S{1.0f};
+  gsm::mat3 S{1.0f};
   S[0][0] = mod * scale.x;
   S[1][1] = mod * scale.y;
   S[2][2] = mod * scale.z;
 
   // Normalize quaternion to get valid rotation
-  rs::vec4 q = rot; // / rs::length(rot);
+  gsm::vec4 q = rot; // / gsm::length(rot);
   float r = q.x;
   float x = q.y;
   float y = q.z;
   float z = q.w;
 
   // Compute rotation matrix from quaternion
-  rs::mat3 R = rs::mat3(1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-                        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-                        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y));
+  gsm::mat3 R = gsm::mat3(1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+                          2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+                          2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y));
 
-  rs::mat3 M = S * R;
+  gsm::mat3 M = S * R;
 
   // Compute 3D world covariance matrix Sigma
-  rs::mat3 Sigma = M.transpose() * M;
+  gsm::mat3 Sigma = M.transpose() * M;
 
   // Covariance is symmetric, only store upper right
   cov3D[0] = Sigma[0][0];
@@ -125,10 +125,10 @@ __device__ void computeCov3D(const rs::vec3 scale, float mod, const rs::vec4 rot
 // Perform initial steps for each Gaussian prior to rasterization.
 template <int C>
 __global__ void
-preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *scales,
-               const float scale_modifier, const rs::vec4 *rotations, const float *opacities,
+preprocessCUDA(int P, int D, int M, const float *orig_points, const gsm::vec3 *scales,
+               const float scale_modifier, const gsm::vec4 *rotations, const float *opacities,
                const float *shs, bool *clamped, const float *cov3D_precomp, const float *colors_precomp,
-               const float *viewmatrix, const float *projviewmatrix, const rs::vec3 *cam_pos, const int W,
+               const float *viewmatrix, const float *projviewmatrix, const gsm::vec3 *cam_pos, const int W,
                int H, const float tan_fovx, float tan_fovy, const float focal_x, float focal_y, int *radii,
                float2 *points_xy_image, float *depths, float *cov3Ds, float *rgb, float4 *conic_opacity,
                const dim3 grid, uint32_t *tiles_touched, bool prefiltered, int2 *rects, float3 boxmin,
@@ -137,8 +137,8 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   if (idx >= P)
     return;
 
-  rs::mat4 view_mat{viewmatrix};
-  rs::mat4 proj_view_mat{projviewmatrix};
+  gsm::mat4 view_mat{viewmatrix};
+  gsm::mat4 proj_view_mat{projviewmatrix};
 
   // Initialize radius and touched tiles to 0. If this isn't changed,
   // this Gaussian will not be processed further.
@@ -146,16 +146,16 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   tiles_touched[idx] = 0;
 
   // Transform point by projecting
-  rs::vec3 p_orig = {orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2]};
+  gsm::vec3 p_orig = {orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2]};
 
   if (p_orig.x < boxmin.x || p_orig.y < boxmin.y || p_orig.z < boxmin.z || p_orig.x > boxmax.x ||
       p_orig.y > boxmax.y || p_orig.z > boxmax.z)
     return;
 
-  rs::vec4 p_hom = proj_view_mat * rs::vec4(p_orig, 1.0f);
+  gsm::vec4 p_hom = proj_view_mat * gsm::vec4(p_orig, 1.0f);
   float p_w = 1.0f / (p_hom.w + 0.0000001f);
   float3 p_proj = {p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w};
-  rs::vec3 p_view = rs::vec3(view_mat * rs::vec4(p_orig, 1.0f));
+  gsm::vec3 p_view = gsm::vec3(view_mat * gsm::vec4(p_orig, 1.0f));
 
   // Perform near culling, quit if outside.
   if (!in_frustum(prefiltered, p_view))
@@ -220,8 +220,8 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   // If colors have been precomputed, use them, otherwise convert
   // spherical harmonics coefficients to RGB color.
   if (colors_precomp == nullptr) {
-    rs::vec3 result =
-        computeColorFromSH(static_cast<int>(idx), D, M, (rs::vec3 *)orig_points, *cam_pos, shs, clamped);
+    gsm::vec3 result =
+        computeColorFromSH(static_cast<int>(idx), D, M, (gsm::vec3 *)orig_points, *cam_pos, shs, clamped);
     rgb[idx * C + 0] = result.x;
     rgb[idx * C + 1] = result.y;
     rgb[idx * C + 2] = result.z;
@@ -239,11 +239,11 @@ preprocessCUDA(int P, int D, int M, const float *orig_points, const rs::vec3 *sc
   tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 }
 
-void FORWARD::preprocess(int P, int D, int M, const float *means3D, const rs::vec3 *scales,
-                         float scale_modifier, const rs::vec4 *rotations, const float *opacities,
+void FORWARD::preprocess(int P, int D, int M, const float *means3D, const gsm::vec3 *scales,
+                         float scale_modifier, const gsm::vec4 *rotations, const float *opacities,
                          const float *shs, bool *clamped, const float *cov3D_precomp,
                          const float *colors_precomp, const float *viewmatrix, const float *projviewmatrix,
-                         const rs::vec3 *cam_pos, int W, int H, float focal_x, float focal_y, float tan_fovx,
+                         const gsm::vec3 *cam_pos, int W, int H, float focal_x, float focal_y, float tan_fovx,
                          float tan_fovy, int *radii, float2 *means2D, float *depths, float *cov3Ds,
                          float *rgb, float4 *conic_opacity, dim3 grid, uint32_t *tiles_touched,
                          bool prefiltered, int2 *rects, float3 boxmin, float3 boxmax, bool antialiasing) {
@@ -436,6 +436,14 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
         out_color[1 * H * W + pix_id] = 0.0f;
         out_color[2 * H * W + pix_id] = 0.0f;
       }
+    }
+
+    if (hasMask) {
+      const CudaRasterizer::PixelMask &m = mask[pix_id];
+
+      out_color[0 * H * W + pix_id] = m.normal.x;
+      out_color[1 * H * W + pix_id] = m.normal.y;
+      out_color[2 * H * W + pix_id] = m.normal.z;
     }
   }
 }

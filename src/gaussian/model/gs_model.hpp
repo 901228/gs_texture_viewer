@@ -46,6 +46,8 @@ public:
   virtual void controls();
 
 public:
+  [[nodiscard]] glm::vec3 boxMin() const;
+  [[nodiscard]] glm::vec3 boxMax() const;
   [[nodiscard]] glm::vec3 center() const;
   [[nodiscard]] GaussianGLData &gaussianGLData() const;
   [[nodiscard]] virtual int count() const;
@@ -90,7 +92,7 @@ protected:
    * Only flip Y axis of projection matrix because the z of the clipped position represents the depth of the
    * point, which will be processed by division by the z of the view pos.
    */
-  void uploadColmapViewPorjMatrix(const Camera &camera) const;
+  virtual void uploadColmapViewPorjMatrix(const Camera &camera) const;
 
   float *_background_cuda = nullptr;
   int *_rect_cuda = nullptr;

@@ -45,7 +45,7 @@ private:
 private:
   std::unique_ptr<Program> program;
 
-  unsigned int vao, vbo, ebo;
+  unsigned int vao = 0, vbo = 0, ebo = 0;
   int indexCount;
 
 public:

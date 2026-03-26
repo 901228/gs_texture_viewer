@@ -6,47 +6,45 @@
 
 #include <device_launch_parameters.h>
 
-#include "vector/matrix.hpp"
-#include "vector/vector.hpp"
-namespace rs = rasterizer;
+#include "gsm/gsm.cuh"
 
 __device__ float4 CudaRasterizer::sampleTexture(cudaTextureObject_t texId, float2 texCoord,
                                                 TextureOption textureOption) {
 
-  rs::mat2 rotationMatrix = {std::cosf(textureOption.theta), -std::sinf(textureOption.theta),
-                             std::sinf(textureOption.theta), std::cosf(textureOption.theta)};
-  rs::vec2 t = rotationMatrix * ((rs::vec2(texCoord) - 0.5) * textureOption.scale) + 0.5 +
-               rs::vec2(textureOption.offset);
+  gsm::mat2 rotationMatrix = {std::cosf(textureOption.theta), -std::sinf(textureOption.theta),
+                              std::sinf(textureOption.theta), std::cosf(textureOption.theta)};
+  gsm::vec2 t = rotationMatrix * ((gsm::vec2(texCoord) - 0.5) * textureOption.scale) + 0.5 +
+                gsm::vec2(textureOption.offset);
   return tex2D<float4>(texId, t.x, t.y);
 }
 
 namespace {
 
-__host__ __device__ rs::vec3 barycentric(rs::vec3 bary, rs::vec3 p0, rs::vec3 p1, rs::vec3 p2) {
+__host__ __device__ gsm::vec3 barycentric(gsm::vec3 bary, gsm::vec3 p0, gsm::vec3 p1, gsm::vec3 p2) {
   return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
-__host__ __device__ rs::vec2 barycentric(rs::vec3 bary, rs::vec2 p0, rs::vec2 p1, rs::vec2 p2) {
+__host__ __device__ gsm::vec2 barycentric(gsm::vec3 bary, gsm::vec2 p0, gsm::vec2 p1, gsm::vec2 p2) {
   return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
-__host__ __device__ float barycentric(rs::vec3 bary, float p0, float p1, float p2) {
+__host__ __device__ float barycentric(gsm::vec3 bary, float p0, float p1, float p2) {
   return bary.x * p0 + bary.y * p1 + bary.z * p2;
 }
 
 struct VertexOut {
-  rs::vec4 clipPos;
-  rs::vec3 position;
-  rs::vec3 normal;
-  rs::vec3 tangent;
-  rs::vec3 bitangent;
-  rs::vec2 uv;
+  gsm::vec4 clipPos;
+  gsm::vec3 position;
+  gsm::vec3 normal;
+  gsm::vec3 tangent;
+  gsm::vec3 bitangent;
+  gsm::vec2 uv;
   float depth;
 };
 
-__global__ void tessellate(const rs::vec3 *__restrict__ position,               // per-vertex
-                           const rs::vec3 *__restrict__ normals,                // per-vertex
-                           const rs::vec2 *__restrict__ texCoords,              // per-vertex
-                           const rs::vec3 *__restrict__ tangent,                // per-vertex
-                           const rs::vec3 *__restrict__ bitangent,              // per-vertex
+__global__ void tessellate(const gsm::vec3 *__restrict__ position,              // per-vertex
+                           const gsm::vec3 *__restrict__ normals,               // per-vertex
+                           const gsm::vec2 *__restrict__ texCoords,             // per-vertex
+                           const gsm::vec3 *__restrict__ tangent,               // per-vertex
+                           const gsm::vec3 *__restrict__ bitangent,             // per-vertex
                            const cudaTextureObject_t *__restrict__ heightTexId, // per-face
                            CudaRasterizer::TextureOption textureOption, int num_vertices,
                            int num_coarse_triangles, float heightScale, int tessLevel,
@@ -66,25 +64,25 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
   int i1 = patch_id * 3 + 1;
   int i2 = patch_id * 3 + 2;
 
-  rs::vec3 pos0 = position[i0];
-  rs::vec3 pos1 = position[i1];
-  rs::vec3 pos2 = position[i2];
+  gsm::vec3 pos0 = position[i0];
+  gsm::vec3 pos1 = position[i1];
+  gsm::vec3 pos2 = position[i2];
 
-  rs::vec3 norm0 = normals[i0];
-  rs::vec3 norm1 = normals[i1];
-  rs::vec3 norm2 = normals[i2];
+  gsm::vec3 norm0 = normals[i0];
+  gsm::vec3 norm1 = normals[i1];
+  gsm::vec3 norm2 = normals[i2];
 
-  rs::vec2 uv0 = texCoords[i0];
-  rs::vec2 uv1 = texCoords[i1];
-  rs::vec2 uv2 = texCoords[i2];
+  gsm::vec2 uv0 = texCoords[i0];
+  gsm::vec2 uv1 = texCoords[i1];
+  gsm::vec2 uv2 = texCoords[i2];
 
-  rs::vec3 tang0 = tangent[i0];
-  rs::vec3 tang1 = tangent[i1];
-  rs::vec3 tang2 = tangent[i2];
+  gsm::vec3 tang0 = tangent[i0];
+  gsm::vec3 tang1 = tangent[i1];
+  gsm::vec3 tang2 = tangent[i2];
 
-  rs::vec3 bitang0 = bitangent[i0];
-  rs::vec3 bitang1 = bitangent[i1];
-  rs::vec3 bitang2 = bitangent[i2];
+  gsm::vec3 bitang0 = bitangent[i0];
+  gsm::vec3 bitang1 = bitangent[i1];
+  gsm::vec3 bitang2 = bitangent[i2];
 
   // local_tid -> center coordinate
   // traverse tessLevel² sub-triangles
@@ -111,7 +109,7 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
   bool upward = (col % 2 == 0);
   int k = col / 2;
 
-  rs::vec3 b0, b1, b2; // center coordinate of three vertices
+  gsm::vec3 b0, b1, b2; // center coordinate of three vertices
   if (upward) {
     // upward triangle
     b0 = {(row + 0) * inv, (k + 0) * inv, 1.0f - (row + 0) * inv - (k + 0) * inv};
@@ -128,16 +126,16 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
   int out_base = global_tid * 3;
 
   // interpolate attributes
-  rs::vec3 bary_list[3] = {b0, b1, b2};
+  gsm::vec3 bary_list[3] = {b0, b1, b2};
   for (int v = 0; v < 3; v++) {
-    rs::vec3 bary = bary_list[v];
+    gsm::vec3 bary = bary_list[v];
 
     // barycentric interpolation
-    rs::vec3 pos = barycentric(bary, pos0, pos1, pos2);
-    rs::vec3 norm = rs::normalize(barycentric(bary, norm0, norm1, norm2));
-    rs::vec3 tang = rs::normalize(barycentric(bary, tang0, tang1, tang2));
-    rs::vec3 bitang = rs::normalize(barycentric(bary, bitang0, bitang1, bitang2));
-    rs::vec2 uv = barycentric(bary, uv0, uv1, uv2);
+    gsm::vec3 pos = barycentric(bary, pos0, pos1, pos2);
+    gsm::vec3 norm = gsm::normalize(barycentric(bary, norm0, norm1, norm2));
+    gsm::vec3 tang = gsm::normalize(barycentric(bary, tang0, tang1, tang2));
+    gsm::vec3 bitang = gsm::normalize(barycentric(bary, bitang0, bitang1, bitang2));
+    gsm::vec2 uv = barycentric(bary, uv0, uv1, uv2);
 
     // Height map displacement
     if (heightTexId[patch_id / 3] > 0) {
@@ -148,8 +146,8 @@ __global__ void tessellate(const rs::vec3 *__restrict__ position,               
     }
 
     // clipPos
-    rs::vec3 p_view = rs::vec3(rs::mat4(viewmatrix) * rs::vec4(pos, 1.0f));
-    rs::vec4 clipPos = rs::mat4(projmatrix) * rs::vec4(p_view, 1.0f);
+    gsm::vec3 p_view = gsm::vec3(gsm::mat4(viewmatrix) * gsm::vec4(pos, 1.0f));
+    gsm::vec4 clipPos = gsm::mat4(projmatrix) * gsm::vec4(p_view, 1.0f);
 
     VertexOut &out = vertex_out[out_base + v];
     out.clipPos = clipPos;
@@ -181,28 +179,28 @@ __device__ uint32_t float_to_uint_depth(float f) {
   return u;
 }
 
-__host__ __device__ inline rs::vec3 reflect(const rs::vec3 &I, const rs::vec3 &N) {
-  return I - N * 2.0f * rs::dot(N, I);
+__host__ __device__ inline gsm::vec3 reflect(const gsm::vec3 &I, const gsm::vec3 &N) {
+  return I - N * 2.0f * gsm::dot(N, I);
 }
 
-__device__ rs::vec3 calcDirLight(CudaRasterizer::Light light, const rs::vec3 &normal,
-                                 const rs::vec3 &viewDir) {
+__device__ gsm::vec3 calcDirLight(CudaRasterizer::Light light, const gsm::vec3 &normal,
+                                  const gsm::vec3 &viewDir) {
 
-  rs::vec3 lightDir = rs::normalize(-static_cast<rs::vec3>(light.direction));
+  gsm::vec3 lightDir = gsm::normalize(-static_cast<gsm::vec3>(light.direction));
 
   // ambient
   float amb = 0.1;
 
   // diffuse
-  float diff = rs::max(dot(normal, lightDir), 0.0);
+  float diff = gsm::max(dot(normal, lightDir), 0.0);
 
   // specular
   float specularStrength = 0.5;
-  rs::vec3 reflectDir = reflect(-lightDir, normal);
-  float spec = pow(rs::max(dot(viewDir, reflectDir), 0.0), 32) * specularStrength;
+  gsm::vec3 reflectDir = reflect(-lightDir, normal);
+  float spec = pow(gsm::max(dot(viewDir, reflectDir), 0.0), 32) * specularStrength;
 
   // result
-  return (amb + diff + spec) * static_cast<rs::vec3>(light.color) * light.intensity;
+  return (amb + diff + spec) * static_cast<gsm::vec3>(light.color) * light.intensity;
 }
 
 // for each triangle
@@ -231,9 +229,9 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
 
   // Perspective divide → NDC
   // (screenX, screenY, depth)
-  rs::vec3 ndc0 = rs::vec3(v0.clipPos) / (v0.clipPos.w + FLT_EPSILON);
-  rs::vec3 ndc1 = rs::vec3(v1.clipPos) / (v1.clipPos.w + FLT_EPSILON);
-  rs::vec3 ndc2 = rs::vec3(v2.clipPos) / (v2.clipPos.w + FLT_EPSILON);
+  gsm::vec3 ndc0 = gsm::vec3(v0.clipPos) / (v0.clipPos.w + FLT_EPSILON);
+  gsm::vec3 ndc1 = gsm::vec3(v1.clipPos) / (v1.clipPos.w + FLT_EPSILON);
+  gsm::vec3 ndc2 = gsm::vec3(v2.clipPos) / (v2.clipPos.w + FLT_EPSILON);
 
   if (isnan(ndc0.x) || isnan(ndc1.x) || isnan(ndc2.x) || isnan(ndc0.y) || isnan(ndc1.y) || isnan(ndc2.y) ||
       isnan(ndc0.z) || isnan(ndc1.z) || isnan(ndc2.z)) {
@@ -249,10 +247,10 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
   float2 s2 = {(ndc2.x + 1.0f) * hw, (1.0f - ndc2.y) * hh};
 
   // Bounding box (clamp to screen range)
-  int minX = rs::max(0, static_cast<int>(rs::min(rs::min(s0.x, s1.x), s2.x)));
-  int minY = rs::max(0, static_cast<int>(rs::min(rs::min(s0.y, s1.y), s2.y)));
-  int maxX = rs::min(width - 1, rs::ceil(rs::max(rs::max(s0.x, s1.x), s2.x)));
-  int maxY = rs::min(height - 1, rs::ceil(rs::max(rs::max(s0.y, s1.y), s2.y)));
+  int minX = gsm::max(0, static_cast<int>(gsm::min(gsm::min(s0.x, s1.x), s2.x)));
+  int minY = gsm::max(0, static_cast<int>(gsm::min(gsm::min(s0.y, s1.y), s2.y)));
+  int maxX = gsm::min(width - 1, gsm::ceil(gsm::max(gsm::max(s0.x, s1.x), s2.x)));
+  int maxY = gsm::min(height - 1, gsm::ceil(gsm::max(gsm::max(s0.y, s1.y), s2.y)));
 
   float area = edge_function(s0, s1, s2);
   if (area == 0.0f) // 2 vertices are on the same line
@@ -285,7 +283,7 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
         continue;
 
       // barycentric coordinates are normalized to [0, 1]
-      rs::vec3 bary = {w0 / area, w1 / area, w2 / area};
+      gsm::vec3 bary = {w0 / area, w1 / area, w2 / area};
 
       // interpolate depth from barycentric coordinates
       float depth = barycentric(bary, ndc0.z, ndc1.z, ndc2.z);
@@ -301,31 +299,31 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
         CudaRasterizer::PixelMask &m = mask[pixel];
 
         // interpolate normal
-        rs::vec3 N = rs::normalize(barycentric(bary, v0.normal, v1.normal, v2.normal));
+        gsm::vec3 N = gsm::normalize(barycentric(bary, v0.normal, v1.normal, v2.normal));
         // interpolate world position
-        rs::vec3 worldPos = barycentric(bary, v0.position, v1.position, v2.position);
-        rs::vec3 viewDir = rs::normalize(rs::vec3(viewpos) - worldPos);
+        gsm::vec3 worldPos = barycentric(bary, v0.position, v1.position, v2.position);
+        gsm::vec3 viewDir = gsm::normalize(gsm::vec3(viewpos) - worldPos);
 
         float2 uv = static_cast<float2>(barycentric(bary, v0.uv, v1.uv, v2.uv));
         if (normalTexId[prim_id / (tessLevel * tessLevel)] > 0) {
 
           // TBN matrix (all in world/view space)
-          rs::vec3 T = rs::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
+          gsm::vec3 T = gsm::normalize(barycentric(bary, v0.tangent, v1.tangent, v2.tangent));
           // Gram-Schmidt, make sure T is orthogonal to new N
-          T = rs::normalize(T - rs::dot(T, N) * N);
-          rs::vec3 B = rs::cross(N, T);
-          rs::mat3 TBN = rs::mat3(T, B, N);
+          T = gsm::normalize(T - gsm::dot(T, N) * N);
+          gsm::vec3 B = gsm::cross(N, T);
+          gsm::mat3 TBN = gsm::mat3(T, B, N);
 
           // normal map
           float4 mapN = CudaRasterizer::sampleTexture(normalTexId[prim_id / (tessLevel * tessLevel)], uv,
                                                       textureOption);
-          rs::vec3 mapN_ = rs::vec3(mapN.x, mapN.y, mapN.z) * 2.0 - 1.0;
+          gsm::vec3 mapN_ = gsm::vec3(mapN.x, mapN.y, mapN.z) * 2.0 - 1.0;
           N = normalize(TBN * mapN_);
         }
 
         // if (maskCullingMode & CudaRasterizer::MaskCullingMode::NormalCulling) {
         //   // back face culling
-        //   if (rs::dot(N, viewDir) <= 0.0f) {
+        //   if (gsm::dot(N, viewDir) <= 0.0f) {
         //     m.mask = 0;
         //     continue;
         //   }
@@ -341,7 +339,7 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
                                                    textureOption);
 
           // lighting
-          rs::vec3 lightingResult = calcDirLight(lightDirection, N, viewDir) * rs::vec3(c.x, c.y, c.z);
+          gsm::vec3 lightingResult = calcDirLight(lightDirection, N, viewDir) * gsm::vec3(c.x, c.y, c.z);
 
           m.color.x = lightingResult.x;
           m.color.y = lightingResult.y;
@@ -384,9 +382,9 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
   cudaMemset(mask, 0, width * height * sizeof(PixelMask));
 
   tessellate<<<(num_fine_triangles + 255) / 256, 256>>>(
-      (rs::vec3 *)position, (rs::vec3 *)normal, (rs::vec2 *)texCoords, (rs::vec3 *)tangents,
-      (rs::vec3 *)bitangents, heightTexId, textureOption, num_vertices, num_triangles, heightScale, tessLevel,
-      viewmatrix, projmatrix, vertex_out);
+      (gsm::vec3 *)position, (gsm::vec3 *)normal, (gsm::vec2 *)texCoords, (gsm::vec3 *)tangents,
+      (gsm::vec3 *)bitangents, heightTexId, textureOption, num_vertices, num_triangles, heightScale,
+      tessLevel, viewmatrix, projmatrix, vertex_out);
 
   // ── Rasterize + Fragment Shader ──
   render<<<(num_fine_triangles + 255) / 256, 256>>>(

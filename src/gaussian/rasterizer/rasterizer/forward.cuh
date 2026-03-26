@@ -6,18 +6,17 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include "vector/vector.hpp"
-namespace rs = rasterizer;
+#include "gsm/gsm.cuh"
 
 #include "defines.hpp"
 
 namespace FORWARD {
 
 // Perform initial steps for each Gaussian prior to rasterization.
-void preprocess(int P, int D, int M, const float *means3D, const rs::vec3 *scales, float scale_modifier,
-                const rs::vec4 *rotations, const float *opacities, const float *shs, bool *clamped,
+void preprocess(int P, int D, int M, const float *means3D, const gsm::vec3 *scales, float scale_modifier,
+                const gsm::vec4 *rotations, const float *opacities, const float *shs, bool *clamped,
                 const float *cov3D_precomp, const float *colors_precomp, const float *viewmatrix,
-                const float *projviewmatrix, const rs::vec3 *cam_pos, int W, int H, float focal_x,
+                const float *projviewmatrix, const gsm::vec3 *cam_pos, int W, int H, float focal_x,
                 float focal_y, float tan_fovx, float tan_fovy, int *radii, float2 *means2D, float *depths,
                 float *cov3Ds, float *rgb, float4 *conic_opacity, dim3 grid, uint32_t *tiles_touched,
                 bool prefiltered, int2 *rects, float3 boxmin, float3 boxmax, bool antialiasing);

@@ -77,8 +77,8 @@ void calculateTB(MyMesh &mesh) {
   }
 }
 
-std::pair<LogarithmicMap::LogMapTable, float> SolveGeodesic(glm::vec3 hitPoint,
-                                                            GeodesicSplines::Implicit &model) {
+std::tuple<GeodesicSplines::LogarithmicMap::LogMapTable, std::vector<glm::vec3>, float>
+SolveGeodesic(glm::vec3 hitPoint, GeodesicSplines::Implicit &model) {
   return GeodesicSplines::Solve(hitPoint, model);
 }
 
@@ -107,7 +107,7 @@ void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &sele
       }
       center /= float(count);
     }
-    const auto [logMap, R] = SolveGeodesic(center, model);
+    const auto [logMap, lastPoints, R] = SolveGeodesic(center, model);
 
     {
       Utils::Timer::Timer t("Write Texture Coordinates");
@@ -161,7 +161,7 @@ void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &sele
         // originMesh.data(vh).bitangent = {bitangent.x, bitangent.y, bitangent.z};
       }
 
-      SolveUV::calculateTB(mesh);
+      // SolveUV::calculateTB(mesh);
     }
     break;
   }

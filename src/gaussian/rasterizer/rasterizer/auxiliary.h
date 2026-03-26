@@ -5,8 +5,7 @@
 
 #include "config.hpp"
 
-#include "vector/matrix.hpp"
-namespace rs = rasterizer;
+#include "gsm/gsm.cuh"
 
 #define BLOCK_SIZE (BLOCK_X * BLOCK_Y)
 
@@ -43,7 +42,7 @@ __forceinline__ __device__ void getRect(const float2 p, int2 ext_rect, uint2 &re
 
 #define DEPTH_MIN 0.2f
 
-__forceinline__ __device__ bool in_frustum(bool prefiltered, const rs::vec3 &p_view) {
+__forceinline__ __device__ bool in_frustum(bool prefiltered, const gsm::vec3 &p_view) {
 
   if (p_view.z <= DEPTH_MIN) // || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y <
                              // -1.3 || p_proj.y > 1.3)))
@@ -56,6 +55,35 @@ __forceinline__ __device__ bool in_frustum(bool prefiltered, const rs::vec3 &p_v
     return false;
   }
   return true;
+}
+
+// =============================================================================
+
+// determine whether p is on the left side(+), right side(-), or on the line(0) of the segment ab
+__forceinline__ __device__ float _cross2D(gsm::vec2 a, gsm::vec2 b, gsm::vec2 p) {
+  return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+}
+
+__forceinline__ __device__ int _windingNumber(const gsm::vec2 *__restrict__ polygon, int n, gsm::vec2 p) {
+  int winding = 0;
+
+  for (int i = 0, j = n - 1; i < n; j = i++) {
+    const gsm::vec2 &a = polygon[j];
+    const gsm::vec2 &b = polygon[i];
+
+    if (a.y <= p.y) {
+      if (b.y > p.y && _cross2D(a, b, p) > 0)
+        ++winding; // move upward through, on the left side
+    } else {
+      if (b.y <= p.y && _cross2D(a, b, p) < 0)
+        --winding; // move downward through, on the right side
+    }
+  }
+  return winding;
+}
+
+__forceinline__ __device__ bool pointInPolygon(const gsm::vec2 *__restrict__ polygon, int n, gsm::vec2 p) {
+  return _windingNumber(polygon, n, p) != 0;
 }
 
 #endif // !RASTERIZER_AUXILIARY_H

@@ -16,8 +16,8 @@ namespace SolveUV {
 
 enum class SolvingMode : int { Harmonics, ExpMap, GeodesicSplines };
 
-std::pair<LogarithmicMap::LogMapTable, float> SolveGeodesic(glm::vec3 hitPoint,
-                                                            GeodesicSplines::Implicit &model);
+std::tuple<GeodesicSplines::LogarithmicMap::LogMapTable, std::vector<glm::vec3>, float>
+SolveGeodesic(glm::vec3 hitPoint, GeodesicSplines::Implicit &model);
 
 void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID, Model &model,
            std::optional<glm::vec3> hitPoint);
