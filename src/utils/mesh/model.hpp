@@ -49,12 +49,16 @@ protected:
   unsigned int *_vertexBufferObject = nullptr;
   int _elementAmount = 0;
   std::vector<glm::vec3> _vertices;
+  std::vector<glm::vec3> _normals;
 
 protected:
   // model
   bool loadModel(const char *path);
   virtual void initMesh();
+
+public:
   [[nodiscard]] inline const std::vector<glm::vec3> &vertices() const { return _vertices; }
+  [[nodiscard]] inline const std::vector<glm::vec3> &normals() const { return _normals; }
 
 public:
   [[nodiscard]] size_t n_faces() const;
@@ -98,6 +102,8 @@ protected:
   glm::vec3 _boxmax{-std::numeric_limits<float>::max()};
 
 public:
+  [[nodiscard]] glm::vec3 boxMin() const;
+  [[nodiscard]] glm::vec3 boxMax() const;
   [[nodiscard]] glm::vec3 center() const;
 
 protected:
@@ -121,8 +127,8 @@ private:
   const ClosestPointResult _closestPoint(const glm::vec3 &x);
 
 public:
-  // const float eval(const glm::vec3 &x) override;
-  // const glm::vec3 grad(const glm::vec3 &x) override;
+  const float eval(const glm::vec3 &x) override;
+  const glm::vec3 grad(const glm::vec3 &x) override;
   const glm::vec3 project(const glm::vec3 &x) override;
   const glm::vec3 normal(const glm::vec3 &x) override;
 

@@ -38,10 +38,10 @@ namespace GeodesicSplines {
 class Implicit {
 public:
   // f(x) = σ(x) - threshold -> signed distance to surface
-  // virtual const float eval(const glm::vec3 &x) = 0;
+  virtual const float eval(const glm::vec3 &x) = 0;
 
   // ∇f(x)
-  // virtual const glm::vec3 grad(const glm::vec3 &x) = 0;
+  virtual const glm::vec3 grad(const glm::vec3 &x) = 0;
 
   // π(x) -> project onto surface
   virtual const glm::vec3 project(const glm::vec3 &x) = 0;

@@ -1,7 +1,8 @@
 #include "model_panel.hpp"
 
-#include <glad/gl.h>
 #include <memory>
+
+#include <glad/gl.h>
 
 #include "main_window.hpp"
 #include "utils/camera/camera.hpp"
@@ -10,6 +11,7 @@
 #include "utils/imgui/opengl.hpp"
 #include "utils/imgui/sidebar.hpp"
 #include "utils/mesh/geodesic_splines.hpp"
+#include "utils/mesh/isosurface.hpp"
 #include "utils/mesh/model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
@@ -25,6 +27,9 @@ void ModelPanel::_attach() {
   camera = std::make_unique<TrackballCameraThree>(-6.0f);
   camera->setCenter(model->center());
   _textureEditor = std::make_unique<TextureEditor>(*model, true);
+
+  // _mc = Isosurface::extractIsosurface(*model, model->boxMin(), model->boxMax(), 128);
+  // Isosurface::IsosurfaceRenderer::getInstance().upload(_mc);
 }
 
 void ModelPanel::_detach() {}
@@ -52,12 +57,16 @@ void ModelPanel::_render() {
     glClearBufferfv(GL_COLOR, 0, background);
     glClearBufferfv(GL_DEPTH, 0, &one);
 
-    model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
-                  _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
-                  _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
-                  _textureEditor->theta(), _textureEditor->selectedPBR(), _lightDir, _lightIntensity);
+    if (_viewMode == ViewMode::Model) {
+      model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
+                    _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
+                    _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
+                    _textureEditor->theta(), _textureEditor->selectedPBR(), _lightDir, _lightIntensity);
 
-    _textureEditor->handleBrushInput(*camera, _width, _height);
+      _textureEditor->handleBrushInput(*camera, _width, _height);
+    } else if (_viewMode == ViewMode::Isosurface) {
+      Isosurface::IsosurfaceRenderer::getInstance().render(*camera, _lightDir);
+    }
 
     camera->handleInput(pos);
 
@@ -104,6 +113,9 @@ void ModelPanel::_controls() {
   if (ImGui::BeginSideBar("sidebar##model_panel_sidebar")) {
 
     if (ImGui::BeginSideBarItem("render##model_panel_sidebar", Model::icon)) {
+
+      ImGui::Combo("View Mode", reinterpret_cast<int *>(&_viewMode),
+                   Utils::enumToImGuiCombo<ViewMode>().c_str());
 
       ImGui::Checkbox("wire", &wire);
       ImGui::Checkbox("render selected only", &_renderSelectedOnly);

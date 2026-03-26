@@ -51,6 +51,8 @@ Model::~Model() {
 size_t Model::n_faces() const { return _mesh.n_faces(); }
 size_t Model::n_vertices() const { return _mesh.n_faces() * 3; }
 
+glm::vec3 Model::boxMin() const { return _boxmin; }
+glm::vec3 Model::boxMax() const { return _boxmax; }
 glm::vec3 Model::center() const { return Utils::center(_boxmin, _boxmax); }
 
 void Model::use() {
@@ -98,13 +100,12 @@ void Model::initMesh() {
 
   _vertices.clear();
 
-  std::vector<glm::vec3> normals;
   for (const MyMesh::FaceHandle &fh : _mesh.faces()) {
     for (const MyMesh::VertexHandle &vh : _mesh.fv_range(fh)) {
 
       glm::vec3 v = Utils::toGlm(_mesh.point(vh));
       _vertices.emplace_back(v);
-      normals.emplace_back(Utils::toGlm(_mesh.normal(vh)));
+      _normals.emplace_back(Utils::toGlm(_mesh.normal(vh)));
       _mesh.set_texcoord2D(vh, {0, 0});
 
       _boxmin = glm::min(_boxmin, v);
@@ -131,7 +132,7 @@ void Model::initMesh() {
   glEnableVertexAttribArray(0);
 
   glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject[1]);
-  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(normals.size() * sizeof(glm::vec3)), normals.data(),
+  glBufferData(GL_ARRAY_BUFFER, static_cast<long>(_normals.size() * sizeof(glm::vec3)), _normals.data(),
                GL_STATIC_DRAW);
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
   glEnableVertexAttribArray(1);
@@ -362,16 +363,41 @@ const ClosestPointResult Model::_closestPoint(const glm::vec3 &x) {
   return cache.value();
 }
 
-// const float Model::eval(const glm::vec3 &x) {
-//   auto r = _closestPoint(x);
+const float Model::eval(const glm::vec3 &x) {
+  auto r = _closestPoint(x);
 
-//   glm::vec3 n = normal(x);
-//   glm::vec3 diff = x - r.point;
-//   float sign = (glm::dot(diff, n) >= 0) ? 1.f : -1.f;
-//   return sign * glm::length(diff);
-// }
+  float dist = glm::length(x - r.point);
 
-// const glm::vec3 Model::grad(const glm::vec3 &x) {}
+  // use barycentric interpolation to determine inside/outside
+  // dot = 0: x is on the surface
+  // dot > 0: x is outside the surface
+  // dot < 0: x is inside the surface
+  auto fh = _mesh.face_handle(r.faceIdx);
+  auto fv = _mesh.cfv_iter(fh);
+  glm::vec3 na = Utils::toGlm(_mesh.normal(*fv));
+  ++fv;
+  glm::vec3 nb = Utils::toGlm(_mesh.normal(*fv));
+  ++fv;
+  glm::vec3 nc = Utils::toGlm(_mesh.normal(*fv));
+  glm::vec3 surfNormal = glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
+
+  float sign = glm::dot(x - r.point, surfNormal) >= 0.f ? 1.f : -1.f;
+  return sign * dist;
+}
+
+const glm::vec3 Model::grad(const glm::vec3 &x) {
+  auto r = _closestPoint(x);
+
+  glm::vec3 diff = x - r.point;
+  float dist = glm::length(diff);
+
+  // if x is on the surface, use interpolated normal
+  if (dist < 1e-6f)
+    return normal(x);
+
+  // SDF gradient = unit vector pointing from closest point to x
+  return diff / dist;
+}
 
 const glm::vec3 Model::project(const glm::vec3 &x) {
   auto r = _closestPoint(x);

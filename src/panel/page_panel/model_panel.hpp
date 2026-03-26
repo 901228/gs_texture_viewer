@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 
 #include "page_panel.hpp"
+#include "utils/mesh/isosurface.hpp"
 
 class Model;
 class Camera;
@@ -48,6 +49,11 @@ private:
 private:
   glm::vec3 _lightDir{0, -1, 0};
   float _lightIntensity = 0.5f;
+
+private:
+  enum class ViewMode : int { Model, Isosurface };
+  ViewMode _viewMode = ViewMode::Model;
+  Isosurface::MarchingCubesResult _mc;
 };
 
 #endif // !MODEL_PANEL_HPP
