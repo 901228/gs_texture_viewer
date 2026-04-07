@@ -115,6 +115,8 @@ bool ImageTexture::loadImage(const std::string &path, unsigned int &id, float &w
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, TextureWrap::gl(wrapY));
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      float border[] = {0.f, 0.f, 0.f, 0.f};
+      glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
 
       stbi_image_free(data);
       return true;
@@ -243,18 +245,23 @@ std::vector<std::unique_ptr<ImageTexture>> ImageTexture::loadTextureList(const s
 }
 
 PBRTexture::PBRTexture(const std::string path, std::string basecolorPath, std::string normalPath,
-                       std::string heightPath, float heightScale)
+                       std::string heightPath, std::string roughnessPath, std::string maskPath,
+                       float heightScale)
     : _path(path), _name(Utils::File::stem(path)), _heightScale(heightScale) {
 
   auto directoryPath = std::filesystem::path(path);
   _basecolor = ImageTexture::create((directoryPath / basecolorPath).string());
   _normal = ImageTexture::create((directoryPath / normalPath).string(), ImageTexture::ColorType::RGB);
   _height = ImageTexture::create((directoryPath / heightPath).string(), ImageTexture::ColorType::R);
+  _roughness = ImageTexture::create((directoryPath / roughnessPath).string(), ImageTexture::ColorType::R);
+  _mask = ImageTexture::create((directoryPath / maskPath).string(), ImageTexture::ColorType::R);
 
   assert(_basecolor->colorType() == ImageTexture::ColorType::RGBA ||
          _basecolor->colorType() == ImageTexture::ColorType::RGB);
   assert(_normal->colorType() == ImageTexture::ColorType::RGB);
   assert(_height->colorType() == ImageTexture::ColorType::R);
+  assert(_roughness->colorType() == ImageTexture::ColorType::R);
+  assert(_mask->colorType() == ImageTexture::ColorType::R);
 }
 
 PBRTexture::~PBRTexture() = default;
@@ -300,6 +307,8 @@ void PBRTexture::saveTextureList(const std::vector<std::unique_ptr<PBRTexture>> 
     entry.insert_or_assign("basecolor", Utils::File::filename(pbr->_basecolor->path()));
     entry.insert_or_assign("normal", Utils::File::filename(pbr->_normal->path()));
     entry.insert_or_assign("height", Utils::File::filename(pbr->_height->path()));
+    entry.insert_or_assign("roughness", Utils::File::filename(pbr->_roughness->path()));
+    entry.insert_or_assign("mask", Utils::File::filename(pbr->_mask->path()));
     entry.insert_or_assign("heightScale", pbr->_heightScale);
     pbrList.push_back(entry);
   }
@@ -332,6 +341,8 @@ std::vector<std::unique_ptr<PBRTexture>> PBRTexture::loadTextureList(const std::
       auto basecolor = entry->get_as<std::string>("basecolor");
       auto normal = entry->get_as<std::string>("normal");
       auto height = entry->get_as<std::string>("height");
+      auto roughness = entry->get_as<std::string>("roughness");
+      auto mask = entry->get_as<std::string>("mask");
       auto heightScale = entry->get_as<double>("heightScale");
 
       if (!basecolor || !normal || !height)
@@ -340,11 +351,13 @@ std::vector<std::unique_ptr<PBRTexture>> PBRTexture::loadTextureList(const std::
       if (heightScale) {
         result.push_back(std::make_unique<PBRTexture>(
             path->get(), Utils::File::filename(basecolor->get()), Utils::File::filename(normal->get()),
-            Utils::File::filename(height->get()), static_cast<float>(heightScale->get())));
+            Utils::File::filename(height->get()), Utils::File::filename(roughness->get()),
+            Utils::File::filename(mask->get()), static_cast<float>(heightScale->get())));
       } else {
-        result.push_back(std::make_unique<PBRTexture>(path->get(), Utils::File::filename(basecolor->get()),
-                                                      Utils::File::filename(normal->get()),
-                                                      Utils::File::filename(height->get())));
+        result.push_back(std::make_unique<PBRTexture>(
+            path->get(), Utils::File::filename(basecolor->get()), Utils::File::filename(normal->get()),
+            Utils::File::filename(height->get()), Utils::File::filename(roughness->get()),
+            Utils::File::filename(mask->get())));
       }
     }
 

@@ -184,7 +184,7 @@ __host__ __device__ inline gsm::vec3 reflect(const gsm::vec3 &I, const gsm::vec3
 }
 
 __device__ gsm::vec3 calcDirLight(CudaRasterizer::Light light, const gsm::vec3 &normal,
-                                  const gsm::vec3 &viewDir) {
+                                  const gsm::vec3 &viewDir, float roughness) {
 
   gsm::vec3 lightDir = gsm::normalize(-static_cast<gsm::vec3>(light.direction));
 
@@ -194,10 +194,13 @@ __device__ gsm::vec3 calcDirLight(CudaRasterizer::Light light, const gsm::vec3 &
   // diffuse
   float diff = gsm::max(dot(normal, lightDir), 0.0);
 
+  // roughness → shininess： roughness=0 is extremely shiny, roughness=1 is almost no specular
+  float specularStrength = (1.0f - roughness) * (1.0f - roughness);
+  float shininess = gsm::max(2.0f, (1.0f - roughness) * 128.0f);
+
   // specular
-  float specularStrength = 0.5;
   gsm::vec3 reflectDir = reflect(-lightDir, normal);
-  float spec = pow(gsm::max(dot(viewDir, reflectDir), 0.0), 32) * specularStrength;
+  float spec = pow(gsm::max(dot(viewDir, reflectDir), 0.0), shininess) * specularStrength;
 
   // result
   return (amb + diff + spec) * static_cast<gsm::vec3>(light.color) * light.intensity;
@@ -207,6 +210,8 @@ __device__ gsm::vec3 calcDirLight(CudaRasterizer::Light light, const gsm::vec3 &
 __global__ void render(const VertexOut *__restrict__ fs_in,                    // per-vertex
                        const cudaTextureObject_t *__restrict__ basecolorTexId, // per-face
                        const cudaTextureObject_t *__restrict__ normalTexId,    // per-face
+                       const cudaTextureObject_t *__restrict__ roughnessTexId, // per-face
+                       const cudaTextureObject_t *__restrict__ maskTexId,      // per-face
                        int num_triangles, int tessLevel, CudaRasterizer::TextureOption textureOption,
                        CudaRasterizer::Light lightDirection, const float *__restrict__ viewpos, int width,
                        int height,
@@ -298,13 +303,17 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
 
         CudaRasterizer::PixelMask &m = mask[pixel];
 
+        float2 uv = static_cast<float2>(barycentric(bary, v0.uv, v1.uv, v2.uv));
+        float mask = sampleTexture(maskTexId[prim_id / (tessLevel * tessLevel)], uv, textureOption).x;
+        if (mask < 0.5f)
+          continue;
+
         // interpolate normal
         gsm::vec3 N = gsm::normalize(barycentric(bary, v0.normal, v1.normal, v2.normal));
         // interpolate world position
         gsm::vec3 worldPos = barycentric(bary, v0.position, v1.position, v2.position);
         gsm::vec3 viewDir = gsm::normalize(gsm::vec3(viewpos) - worldPos);
 
-        float2 uv = static_cast<float2>(barycentric(bary, v0.uv, v1.uv, v2.uv));
         if (normalTexId[prim_id / (tessLevel * tessLevel)] > 0) {
 
           // TBN matrix (all in world/view space)
@@ -338,8 +347,16 @@ __global__ void render(const VertexOut *__restrict__ fs_in,                    /
           float4 c = CudaRasterizer::sampleTexture(basecolorTexId[prim_id / (tessLevel * tessLevel)], uv,
                                                    textureOption);
 
+          float roughness = 0.5f; // default
+          if (roughnessTexId[prim_id / (tessLevel * tessLevel)] > 0) {
+            roughness = CudaRasterizer::sampleTexture(roughnessTexId[prim_id / (tessLevel * tessLevel)], uv,
+                                                      textureOption)
+                            .x;
+          }
+
           // lighting
-          gsm::vec3 lightingResult = calcDirLight(lightDirection, N, viewDir) * gsm::vec3(c.x, c.y, c.z);
+          gsm::vec3 lightingResult =
+              calcDirLight(lightDirection, N, viewDir, roughness) * gsm::vec3(c.x, c.y, c.z);
 
           m.color.x = lightingResult.x;
           m.color.y = lightingResult.y;
@@ -356,6 +373,7 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
                               const float *tangents, const float *bitangents, int num_vertices,
                               const cudaTextureObject_t *basecolorTexId,
                               const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
+                              const cudaTextureObject_t *roughnessTexId, const cudaTextureObject_t *maskTexId,
                               TextureOption textureOption, float heightScale, Light lightDirection,
                               int num_triangles, int tessLevel, int width, int height,
                               const float *viewmatrix, const float *projmatrix, const float *viewpos,
@@ -388,8 +406,8 @@ void CudaRasterizer::makeMask(const float *position, const float *normal, const 
 
   // ── Rasterize + Fragment Shader ──
   render<<<(num_fine_triangles + 255) / 256, 256>>>(
-      vertex_out, basecolorTexId, normalTexId, num_fine_triangles, tessLevel, textureOption, lightDirection,
-      viewpos, width, height, d_depth, maskCullingMode, mask);
+      vertex_out, basecolorTexId, normalTexId, roughnessTexId, maskTexId, num_fine_triangles, tessLevel,
+      textureOption, lightDirection, viewpos, width, height, d_depth, maskCullingMode, mask);
 
   cudaFree(vertex_out);
   cudaFree(d_depth);

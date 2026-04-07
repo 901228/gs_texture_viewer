@@ -25,8 +25,8 @@ public:
   enum class ColorType { Auto = 0, RGBA = 4, RGB = 3, R = 1 };
 
   static std::unique_ptr<ImageTexture> create(const std::string &path, ColorType colorType = ColorType::Auto,
-                                              TextureWrap::Mode wrapX = TextureWrap::Mode::Repeat,
-                                              TextureWrap::Mode wrapY = TextureWrap::Mode::Repeat);
+                                              TextureWrap::Mode wrapX = TextureWrap::Mode::Border,
+                                              TextureWrap::Mode wrapY = TextureWrap::Mode::Border);
 
   explicit ImageTexture(const std::string &path, const unsigned int &id, const float &width,
                         const float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY,
@@ -80,7 +80,8 @@ public:
 class PBRTexture {
 public:
   PBRTexture(const std::string path, std::string basecolorPath, std::string normalPath,
-             std::string heightPath, float heightScale = 0.0f);
+             std::string heightPath, std::string roughnessPath, std::string maskPath,
+             float heightScale = 0.0f);
   ~PBRTexture();
 
 private:
@@ -89,6 +90,8 @@ private:
   std::unique_ptr<ImageTexture> _basecolor;
   std::unique_ptr<ImageTexture> _normal;
   std::unique_ptr<ImageTexture> _height;
+  std::unique_ptr<ImageTexture> _roughness;
+  std::unique_ptr<ImageTexture> _mask;
 
   float _heightScale;
 
@@ -96,6 +99,8 @@ public:
   [[nodiscard]] inline ImageTexture &basecolor() const { return *_basecolor; }
   [[nodiscard]] inline ImageTexture &normal() const { return *_normal; }
   [[nodiscard]] inline ImageTexture &height() const { return *_height; }
+  [[nodiscard]] inline ImageTexture &roughness() const { return *_roughness; }
+  [[nodiscard]] inline ImageTexture &mask() const { return *_mask; }
 
   [[nodiscard]] inline float heightScale() const { return _heightScale; }
 
@@ -106,10 +111,14 @@ public:
     std::string basecolor;
     std::string normal;
     std::string height;
+    std::string roughness;
+    std::string mask;
     std::string heightScale;
     PBRTextureLocation(std::string basecolor = "material.basecolor", std::string normal = "material.normal",
-                       std::string height = "heightMap", std::string heightScale = "heightScale")
-        : basecolor(basecolor), normal(normal), height(height), heightScale(heightScale) {}
+                       std::string height = "heightMap", std::string roughness = "roughness",
+                       std::string mask = "mask", std::string heightScale = "heightScale")
+        : basecolor(basecolor), normal(normal), height(height), roughness(roughness), mask(mask),
+          heightScale(heightScale) {}
   };
   void setupUniforms(const Program &program, unsigned int index = 0,
                      const PBRTextureLocation &location = {}) const;

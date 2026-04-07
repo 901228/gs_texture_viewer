@@ -25,9 +25,12 @@ void preprocess(int P, int D, int M, const float *means3D, const gsm::vec3 *scal
 void render(dim3 grid, dim3 block, const uint2 *ranges, const uint32_t *point_list, int W, int H,
             const float2 *means2D, const float *depths, const float *colors, const float4 *conic_opacity,
             float *final_T, uint32_t *n_contrib, const float *bg_color, float *out_color,
-            float *out_depth_raw = nullptr, float *out_t_final = nullptr,
+            float *out_depth_raw = nullptr, float *out_t_final = nullptr, int P0 = -1,
+            const unsigned int *appearance_face_idx = nullptr, const unsigned int *selectedID = nullptr,
+            int selectedIDSize = 0,
             CudaRasterizer::RenderingMode renderingMode = CudaRasterizer::RenderingMode::Color,
-            const CudaRasterizer::PixelMask *mask = nullptr, float threshold = 0.005f,
+            const CudaRasterizer::PixelMask *mask = nullptr, float threshold1 = 0.005f,
+            float threshold2 = 0.005f, float threshold3 = 0.005f, float threshold4 = 0.005f,
             CudaRasterizer::TextureOption textureOption = {});
 } // namespace FORWARD
 

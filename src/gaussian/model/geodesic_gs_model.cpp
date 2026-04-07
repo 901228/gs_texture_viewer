@@ -116,7 +116,8 @@ void GeodesicGaussianModel::render(const Camera &camera, const int &width, const
       _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
       _scalingModifier, _rot_cuda, nullptr, _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda,
       tan_fovx, tan_fovy, false, image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, _pick_depth_cuda,
-      _pick_T_cuda, _renderingMode, _mask_cuda, _threshold, textureOption));
+      _pick_T_cuda, gsCount, nullptr, nullptr, 0, _renderingMode, _mask_cuda, _threshold, _threshold,
+      _threshold, _threshold, textureOption));
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "

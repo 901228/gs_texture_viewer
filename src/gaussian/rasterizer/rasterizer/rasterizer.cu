@@ -183,8 +183,10 @@ int CudaRasterizer::forward(
     const float *scales, float scale_modifier, const float *rotations, const float *cov3D_precomp,
     const float *viewmatrix, const float *projviewmatrix, const float *cam_pos, float tan_fovx,
     float tan_fovy, bool prefiltered, float *out_color, bool antialiasing, int *radii, int *rects,
-    const float *boxmin, const float *boxmax, float *out_depth_raw, float *out_t_final,
-    RenderingMode renderingMode, const PixelMask *mask, float threshold, TextureOption textureOption) {
+    const float *boxmin, const float *boxmax, float *out_depth_raw, float *out_t_final, int P0,
+    const unsigned int *appearance_face_idx, const unsigned int *selectedID, int selectedIDSize,
+    RenderingMode renderingMode, const PixelMask *mask, float threshold1, float threshold2, float threshold3,
+    float threshold4, TextureOption textureOption) {
 
   const float focal_y = static_cast<float>(height) / (2.0f * tan_fovy);
   const float focal_x = static_cast<float>(width) / (2.0f * tan_fovx);
@@ -266,7 +268,8 @@ int CudaRasterizer::forward(
   FORWARD::render(tile_grid, block, imgState.ranges, binningState.point_list, width, height,
                   geomState.means2D, geomState.depths, feature_ptr, geomState.conic_opacity,
                   imgState.accum_alpha, imgState.n_contrib, background, out_color, out_depth_raw, out_t_final,
-                  renderingMode, mask, threshold, textureOption);
+                  P0, appearance_face_idx, selectedID, selectedIDSize, renderingMode, mask, threshold1,
+                  threshold2, threshold3, threshold4, textureOption);
 
   return num_rendered;
 }

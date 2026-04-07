@@ -33,6 +33,10 @@ TextureGaussianModel::~TextureGaussianModel() {
   cudaFree(_model_basecolor_map_cuda);
   cudaFree(_model_normal_map_cuda);
   cudaFree(_model_height_map_cuda);
+  cudaFree(_model_roughness_map_cuda);
+  cudaFree(_model_mask_filter_cuda);
+  cudaFree(_appearance_face_idx_cuda);
+  cudaFree(_selected_face_idx_cuda);
 
   //
   cudaFree(_view_cuda);
@@ -123,6 +127,15 @@ void TextureGaussianModel::_loadPly(const char *geometryPlyPath, const char *app
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_cam_pos_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_background_cuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_rect_cuda, 2 * (gsCount + _gsCountA) * sizeof(int)));
+
+  // Appearance face index
+  std::vector<unsigned int> faceIds_uint;
+  for (const float &f : faceIds) {
+    faceIds_uint.push_back(static_cast<unsigned int>(f));
+  }
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_appearance_face_idx_cuda, sizeof(unsigned int) * _gsCountA));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_appearance_face_idx_cuda, faceIds_uint.data(),
+                                   sizeof(unsigned int) * _gsCountA, cudaMemcpyHostToDevice));
 }
 
 void TextureGaussianModel::initMesh() {
@@ -166,6 +179,14 @@ void TextureGaussianModel::updateTextureInfo(const TextureEditor &textureEditor)
       faceCount, selectedTexture != nullptr ? selectedTexture->height().cudaTextureId() : 0);
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_height_map_cuda, heightIdx.data(),
                                    sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
+  std::vector<cudaTextureObject_t> roughnessIdx(
+      faceCount, selectedTexture != nullptr ? selectedTexture->roughness().cudaTextureId() : 0);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_roughness_map_cuda, roughnessIdx.data(),
+                                   sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
+  std::vector<cudaTextureObject_t> maskIdx(
+      faceCount, selectedTexture != nullptr ? selectedTexture->mask().cudaTextureId() : 0);
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_model_mask_filter_cuda, maskIdx.data(),
+                                   sizeof(cudaTextureObject_t) * faceCount, cudaMemcpyHostToDevice));
 }
 
 void TextureGaussianModel::render(const Camera &camera, const int &width, const int &height,
@@ -204,7 +225,7 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   CUDA_SAFE_CALL(CudaRasterizer::makeMask(
       _model_position_cuda, _model_normal_cuda, _model_texCoords_cuda, _model_tangent_cuda,
       _model_bitangent_cuda, faceCount * 3, _model_basecolor_map_cuda, _model_normal_map_cuda,
-      _model_height_map_cuda, textureOption,
+      _model_height_map_cuda, _model_roughness_map_cuda, _model_mask_filter_cuda, textureOption,
       selectedTexture != nullptr ? selectedTexture->heightScale() : 0.0f, light, faceCount, _tessLevel, width,
       height, _view_cuda, _proj_cuda, _cam_pos_cuda, maskCullingMode, _mask_cuda));
 
@@ -212,12 +233,13 @@ void TextureGaussianModel::render(const Camera &camera, const int &width, const 
   int *rects = _fastCulling ? _rect_cuda : nullptr;
   float *boxmin = _cropping ? glm::value_ptr(GaussianModel::_boxmin) : nullptr;
   float *boxmax = _cropping ? glm::value_ptr(GaussianModel::_boxmax) : nullptr;
-  CudaRasterizer::forward(_geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA,
-                          _sh_degree, MAX_SH_COEFF, _background_cuda, width, height, _pos_cuda, _shs_cuda,
-                          nullptr, _opacity_cuda, _scale_cuda, _scalingModifier, _rot_cuda, nullptr,
-                          _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda, tan_fovx, tan_fovy, false,
-                          image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, nullptr, nullptr,
-                          _renderingMode, _mask_cuda, _threshold, textureOption);
+  CudaRasterizer::forward(
+      _geomBufferFunc, _binningBufferFunc, _imgBufferFunc, gsCount + _gsCountA, _sh_degree, MAX_SH_COEFF,
+      _background_cuda, width, height, _pos_cuda, _shs_cuda, nullptr, _opacity_cuda, _scale_cuda,
+      _scalingModifier, _rot_cuda, nullptr, _colmap_view_cuda, _colmap_proj_view_cuda, _cam_pos_cuda,
+      tan_fovx, tan_fovy, false, image_cuda, _antialiasing, nullptr, rects, boxmin, boxmax, nullptr, nullptr,
+      gsCount, _appearance_face_idx_cuda, _selected_face_idx_cuda, _selectedID->size(), _renderingMode,
+      _mask_cuda, _threshold1, _threshold2, _threshold3, _threshold4, textureOption);
 
   if (cudaPeekAtLastError() != cudaSuccess) {
     throw std::runtime_error(std::format("A CUDA error occurred during rendering:{}. Please rerun "
@@ -237,7 +259,10 @@ void TextureGaussianModel::controls() {
   ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
                Utils::enumToImGuiCombo<CudaRasterizer::RenderingMode>().c_str());
 
-  ImGui::SliderFloat("threshold", &_threshold, 0.0f, 0.02f, "%.4f");
+  ImGui::SliderFloat("threshold1", &_threshold1, 0.0f, 1.1f, "%.4f");
+  ImGui::SliderFloat("threshold2", &_threshold2, 0.0f, 1.1f, "%.4f");
+  ImGui::SliderFloat("threshold3", &_threshold3, 0.0f, 0.2f, "%.4f");
+  ImGui::SliderFloat("threshold4", &_threshold4, 0.0f, 1.1f, "%.4f");
 
   ImGui::SliderInt("Tess Level", &_tessLevel, 1, 1024);
 }
@@ -280,6 +305,7 @@ void TextureGaussianModel::updateData() {
 
   // free old data
   cudaFree(_model_position_cuda);
+  cudaFree(_selected_face_idx_cuda);
   cudaFree(_model_normal_cuda);
   cudaFree(_model_texCoords_cuda);
   cudaFree(_model_tangent_cuda);
@@ -287,6 +313,8 @@ void TextureGaussianModel::updateData() {
   cudaFree(_model_basecolor_map_cuda);
   cudaFree(_model_normal_map_cuda);
   cudaFree(_model_height_map_cuda);
+  cudaFree(_model_roughness_map_cuda);
+  cudaFree(_model_mask_filter_cuda);
 
   // allocate new data
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void **)&_model_position_cuda, sizeof(glm::vec3) * vertexCount));
@@ -310,6 +338,16 @@ void TextureGaussianModel::updateData() {
       cudaMalloc((void **)&_model_normal_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
   CUDA_SAFE_CALL_ALWAYS(
       cudaMalloc((void **)&_model_height_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_model_roughness_map_cuda, sizeof(cudaTextureObject_t) * faceCount));
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_model_mask_filter_cuda, sizeof(cudaTextureObject_t) * faceCount));
+
+  std::vector<unsigned int> selectedIDData(_selectedID->begin(), _selectedID->end());
+  CUDA_SAFE_CALL_ALWAYS(
+      cudaMalloc((void **)&_selected_face_idx_cuda, sizeof(unsigned int) * _selectedID->size()));
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(_selected_face_idx_cuda, selectedIDData.data(),
+                                   sizeof(unsigned int) * _selectedID->size(), cudaMemcpyHostToDevice));
 }
 
 void TextureGaussianModel::updateTexcoordVAO() {
@@ -371,6 +409,12 @@ void TextureGaussianModel::clearSelect() {
   _model_normal_map_cuda = nullptr;
   cudaFree(_model_height_map_cuda);
   _model_height_map_cuda = nullptr;
+  cudaFree(_model_roughness_map_cuda);
+  _model_roughness_map_cuda = nullptr;
+  cudaFree(_model_mask_filter_cuda);
+  _model_mask_filter_cuda = nullptr;
+  cudaFree(_selected_face_idx_cuda);
+  _selected_face_idx_cuda = nullptr;
 }
 
 int TextureGaussianModel::count() const { return gsCount + _gsCountA; }

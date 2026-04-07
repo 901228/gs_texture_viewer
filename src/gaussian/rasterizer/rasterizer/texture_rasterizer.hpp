@@ -11,6 +11,7 @@ __device__ float4 sampleTexture(cudaTextureObject_t texId, float2 texCoord, Text
 void makeMask(const float *position, const float *normal, const float *texCoords, const float *tangents,
               const float *bitangents, int num_vertices, const cudaTextureObject_t *basecolorTexId,
               const cudaTextureObject_t *normalTexId, const cudaTextureObject_t *heightTexId,
+              const cudaTextureObject_t *roughnessTexId, const cudaTextureObject_t *maskTexId,
               TextureOption textureOption, float heightScale, Light lightDirection, int num_triangles,
               int tessLevel, int width, int height, const float *viewmatrix, const float *projmatrix,
               const float *viewpos, MaskCullingMode maskCullingMode, PixelMask *mask);

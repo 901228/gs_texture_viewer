@@ -56,7 +56,10 @@ private:
   void updateTexcoordVAO() override;
 
 private:
-  float _threshold = 0.014f;
+  float _threshold1 = 0.000f;
+  float _threshold2 = 0.000f;
+  float _threshold3 = 0.010f;
+  float _threshold4 = 0.000f;
 
 private:
   // for CUDA
@@ -77,6 +80,10 @@ private:
   cudaTextureObject_t *_model_basecolor_map_cuda = nullptr;
   cudaTextureObject_t *_model_normal_map_cuda = nullptr;
   cudaTextureObject_t *_model_height_map_cuda = nullptr;
+  cudaTextureObject_t *_model_roughness_map_cuda = nullptr;
+  cudaTextureObject_t *_model_mask_filter_cuda = nullptr;
+  unsigned int *_appearance_face_idx_cuda = nullptr;
+  unsigned int *_selected_face_idx_cuda = nullptr;
 
   // output
   CudaRasterizer::PixelMask *_mask_cuda = nullptr;

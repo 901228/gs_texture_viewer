@@ -59,7 +59,7 @@ private:
   int _brushRadius = 10;
   std::optional<glm::vec3> _hitResult = std::nullopt;
 
-  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::GeodesicSplines;
+  SolveUV::SolvingMode _solvingMode = SolveUV::SolvingMode::ExpMap;
   bool _solved = false;
   bool _autoCalculate = true;
 

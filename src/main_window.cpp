@@ -189,8 +189,8 @@ bool MainWindow::Init(bool isMultiViewport) {
 
   // panels
   {
-    panels.push_back(std::make_unique<GeodesicTextureGSPanel>());
     panels.push_back(std::make_unique<TextureGSPanel>());
+    panels.push_back(std::make_unique<GeodesicTextureGSPanel>());
     panels.push_back(std::make_unique<ModelPanel>());
     panels.push_back(std::make_unique<GaussianPanel>());
   }

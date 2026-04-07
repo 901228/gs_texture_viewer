@@ -270,8 +270,11 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
                float *__restrict__ final_T, uint32_t *__restrict__ n_contrib,
                const float *__restrict__ bg_color, float *__restrict__ out_color,
                float *__restrict__ out_depth_raw = nullptr, float *__restrict__ out_t_final = nullptr,
+               int P0 = -1, const unsigned int *__restrict__ appearance_face_idx = nullptr,
+               const unsigned int *__restrict__ selectedID = nullptr, int selectedIDSize = 0,
                CudaRasterizer::RenderingMode renderingMode = CudaRasterizer::RenderingMode::Color,
-               const CudaRasterizer::PixelMask *__restrict__ mask = nullptr, float threshold = 0.005f,
+               const CudaRasterizer::PixelMask *__restrict__ mask = nullptr, float threshold1 = 0.005f,
+               float threshold2 = 0.005f, float threshold3 = 0.005f, float threshold4 = 0.005f,
                CudaRasterizer::TextureOption textureOption = {}) {
   // Identify current tile and associated min/max pixel range.
   uint32_t horizontal_blocks = (W + BLOCK_X - 1) / BLOCK_X;
@@ -308,7 +311,8 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
   bool hasMask = mask != nullptr && mask[pix_id].mask != 0;
   float mesh_depth = hasMask ? mask[pix_id].depth : FLT_MAX;
   bool compareT = (textureOption.cullingMode & CudaRasterizer::MaskCullingMode::T_Comparison);
-  bool found = !hasMask || !compareT;
+  bool compareF = (textureOption.cullingMode & CudaRasterizer::MaskCullingMode::FaceIdx);
+  bool found = !hasMask || (!compareT && !compareF);
   bool visible = false;
   float pixelDepth = 0;
 
@@ -334,15 +338,46 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
       // Keep track of current position in range
       contributor++;
 
-      if (!found && depths[collected_id[j]] > mesh_depth) {
-        found = true;
+      if (!found) {
+        bool selected = false;
+        int id = collected_id[j];
+        bool isAppearance = P0 >= 0 && id >= P0;
+        if (compareF && isAppearance) {
+          unsigned int face_idx = appearance_face_idx[id - P0];
+          for (int k = 0; k < selectedIDSize; k++) {
+            if (selectedID[k] == face_idx) {
+              selected = true;
+              break;
+            }
+          }
+        }
 
-        // T is the rest available contribution for this gs
-        visible = T >= 0;
+        if (compareF && compareT) {
+          if (depths[id] > mesh_depth) {
+            found = true;
+
+            // T is the rest available contribution for this gs
+            visible = T >= threshold1;
+          }
+          // else if (std::abs(depths[id] - mesh_depth) < threshold3 && selected) {
+          else if (depths[id] < mesh_depth && selected) {
+            found = true;
+            visible = T >= threshold2;
+          }
+        }
+        // else if (compareF && std::abs(depths[id] - mesh_depth) < threshold3 && selected) {
+        else if (compareF && depths[id] < mesh_depth && selected) {
+          found = true;
+          visible = T >= threshold2;
+        } else if (compareT && depths[id] > mesh_depth) {
+          found = true;
+
+          // T is the rest available contribution for this gs
+          visible = T >= threshold1;
+        }
       }
 
-      // Resample using conic matrix (cf. "Surface
-      // Splatting" by Zwicker et al., 2001)
+      // Resample using conic matrix (cf. "Surface Splatting" by Zwicker et al., 2001)
       float2 xy = collected_xy[j];
       float2 d = {xy.x - pixf.x, xy.y - pixf.y};
       float4 con_o = collected_conic_opacity[j];
@@ -351,8 +386,7 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
         continue;
 
       // Eq. (2) from 3D Gaussian splatting paper.
-      // Obtain alpha by multiplying with Gaussian opacity
-      // and its exponential falloff from mean.
+      // Obtain alpha by multiplying with Gaussian opacity and its exponential falloff from mean.
       // Avoid numerical instabilities (see paper appendix).
       float alpha = min(0.99f, con_o.w * exp(power));
       if (alpha < 1.0f / 255.0f)
@@ -403,13 +437,11 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
     }
 
     // whether to override the GS color with the texture color
-    bool overrideColor =
-        // (compareT && visible) ||
-        (compareT && found) ||
-        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) ||
-        ((textureOption.cullingMode & CudaRasterizer::MaskCullingMode::Depth_Comparison) &&
-         std::abs(mesh_depth - pixelDepth) <= threshold * dRange) ||
-        (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::None);
+    bool overrideColor = (compareT && visible) || (compareF && visible) ||
+                         (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::NormalCulling) ||
+                         ((textureOption.cullingMode & CudaRasterizer::MaskCullingMode::Depth_Comparison) &&
+                          std::abs(mesh_depth - pixelDepth) <= threshold3 * dRange) ||
+                         (textureOption.cullingMode == CudaRasterizer::MaskCullingMode::None);
 
     if (hasMask && overrideColor) {
       const CudaRasterizer::PixelMask &m = mask[pix_id];
@@ -438,24 +470,27 @@ __global__ void __launch_bounds__(BLOCK_X *BLOCK_Y)
       }
     }
 
-    if (hasMask) {
-      const CudaRasterizer::PixelMask &m = mask[pix_id];
+    // if (hasMask) {
+    //   const CudaRasterizer::PixelMask &m = mask[pix_id];
 
-      out_color[0 * H * W + pix_id] = m.normal.x;
-      out_color[1 * H * W + pix_id] = m.normal.y;
-      out_color[2 * H * W + pix_id] = m.normal.z;
-    }
+    //   out_color[0 * H * W + pix_id] = m.normal.x;
+    //   out_color[1 * H * W + pix_id] = m.normal.y;
+    //   out_color[2 * H * W + pix_id] = m.normal.z;
+    // }
   }
 }
 
 void FORWARD::render(dim3 grid, dim3 block, const uint2 *ranges, const uint32_t *point_list, int W, int H,
                      const float2 *means2D, const float *depths, const float *colors,
                      const float4 *conic_opacity, float *final_T, uint32_t *n_contrib, const float *bg_color,
-                     float *out_color, float *out_depth_raw, float *out_t_final,
-                     CudaRasterizer::RenderingMode renderingMode, const CudaRasterizer::PixelMask *mask,
-                     float threshold, CudaRasterizer::TextureOption textureOption) {
+                     float *out_color, float *out_depth_raw, float *out_t_final, int P0,
+                     const unsigned int *appearance_face_idx, const unsigned int *selectedID,
+                     int selectedIDSize, CudaRasterizer::RenderingMode renderingMode,
+                     const CudaRasterizer::PixelMask *mask, float threshold1, float threshold2,
+                     float threshold3, float threshold4, CudaRasterizer::TextureOption textureOption) {
 
-  renderCUDA<NUM_CHANNELS><<<grid, block>>>(ranges, point_list, W, H, means2D, depths, colors, conic_opacity,
-                                            final_T, n_contrib, bg_color, out_color, out_depth_raw,
-                                            out_t_final, renderingMode, mask, threshold, textureOption);
+  renderCUDA<NUM_CHANNELS><<<grid, block>>>(
+      ranges, point_list, W, H, means2D, depths, colors, conic_opacity, final_T, n_contrib, bg_color,
+      out_color, out_depth_raw, out_t_final, P0, appearance_face_idx, selectedID, selectedIDSize,
+      renderingMode, mask, threshold1, threshold2, threshold3, threshold4, textureOption);
 }

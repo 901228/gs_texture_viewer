@@ -109,16 +109,8 @@ void TextureEditor::renderList() {
 
 void TextureEditor::controls() {
 
-  if (_solvingMode == SolveUV::SolvingMode::GeodesicSplines) {
-    ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_selectMode),
-                 Utils::enumToImGuiCombo<SelectMode>().c_str());
-  } else {
-    ImGui::BeginDisabled();
-    SelectMode _dummy = SelectMode::Faces;
-    ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_dummy),
-                 Utils::enumToImGuiCombo<SelectMode>().c_str());
-    ImGui::EndDisabled();
-  }
+  ImGui::Combo("Select Mode", reinterpret_cast<int *>(&_selectMode),
+               Utils::enumToImGuiCombo<SelectMode>().c_str());
   ImGui::NewLine();
 
   ImGui::SeparatorText("Brush Options");
@@ -244,12 +236,16 @@ bool TextureEditor::add(const std::string &textrueDirectory, float heightScale) 
   auto basecolorPath = checkPath("basecolor");
   auto normalPath = checkPath("normal");
   auto heightPath = checkPath("height");
+  auto roughnessPath = checkPath("roughness");
+  auto maskPath = checkPath("logo_mask");
 
-  if (!basecolorPath.has_value() || !normalPath.has_value() || !heightPath.has_value())
+  if (!basecolorPath.has_value() || !normalPath.has_value() || !heightPath.has_value() ||
+      !maskPath.has_value())
     return false;
 
-  _pbrTextureList.push_back(std::make_unique<PBRTexture>(
-      textrueDirectory, basecolorPath.value(), normalPath.value(), heightPath.value(), heightScale));
+  _pbrTextureList.push_back(
+      std::make_unique<PBRTexture>(textrueDirectory, basecolorPath.value(), normalPath.value(),
+                                   heightPath.value(), roughnessPath.value(), maskPath.value(), heightScale));
   PBRTexture::saveTextureList(_pbrTextureList, _textureListPath);
 
   return true;
@@ -357,6 +353,10 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
         bool dirty = _model.select(_hitResult.value(), _brushRadius - 1, isLeftDown);
         if (dirty) {
           _model.updateTextureInfo(*this);
+        }
+
+        if (_solvingMode == SolveUV::SolvingMode::ExpMap && _autoCalculate) {
+          _solved = false;
         }
       }
     }
