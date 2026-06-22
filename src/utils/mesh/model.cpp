@@ -34,7 +34,7 @@ Model::Model()
   _mesh.request_face_status();
 }
 
-Model::Model(const char *path) : Model() { loadModel(path); }
+Model::Model(const char *path) : Model() { loadMesh(path); }
 
 Model::~Model() {
   if (_vertexBufferObject != nullptr)
@@ -65,7 +65,7 @@ void Model::unUse() {
   Program::unUse();
 }
 
-bool Model::loadModel(const char *path) {
+bool Model::loadMesh(const char *path) {
   this->use();
 
 #if not _MSC_VER

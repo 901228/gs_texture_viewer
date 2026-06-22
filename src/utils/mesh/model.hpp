@@ -53,7 +53,7 @@ protected:
 
 protected:
   // model
-  bool loadModel(const char *path);
+  bool loadMesh(const char *path);
   virtual void initMesh();
 
 public:

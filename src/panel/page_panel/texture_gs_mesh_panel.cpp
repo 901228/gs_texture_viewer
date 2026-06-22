@@ -1,12 +1,10 @@
-
-
-#include "texture_gs_panel.hpp"
+#include "texture_gs_mesh_panel.hpp"
 
 #include <memory>
 
 #include <ImGui/imgui.h>
 
-#include "gaussian/model/texture_gs_model.hpp"
+#include "gaussian/model/texture_gs_model_mesh.hpp"
 #include "utils/camera/trackball_camera_three.hpp"
 #include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/sidebar.hpp"
@@ -16,30 +14,31 @@
 
 #include "rasterizer/defines.hpp"
 
-TextureGSPanel::TextureGSPanel() : _textureGaussianModel(nullptr), camera(nullptr), _textureEditor(nullptr) {}
+TextureGSMeshPanel::TextureGSMeshPanel()
+    : _textureGaussianModel(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
-TextureGSPanel::~TextureGSPanel() { detach(); }
+TextureGSMeshPanel::~TextureGSMeshPanel() { detach(); }
 
-void TextureGSPanel::_attach() {
-  _textureGaussianModel = std::make_unique<TextureGaussianModel>(
-      Utils::Path::getAssetsPath("gs/armadillo/geo.ply").c_str(),
-      Utils::Path::getAssetsPath("gs/armadillo/app.ply").c_str(), 3, 0);
+void TextureGSMeshPanel::_attach() {
+  _textureGaussianModel = std::make_unique<TextureGaussianModelMesh>(
+      Utils::Path::getAssetsPath("gs_mesh/armadillo/gs.ply").c_str(),
+      Utils::Path::getAssetsPath("gs_mesh/armadillo/sugar.obj").c_str(), 3, 0);
 
-  camera = std::make_unique<TrackballCameraThree>(-40.0f, TrackballCameraThreeSettings());
+  camera = std::make_unique<TrackballCameraThree>(10.0f, TrackballCameraThreeSettings());
   camera->setCenter(_textureGaussianModel->center());
 
   _textureEditor = std::make_unique<TextureEditor>(*_textureGaussianModel, true);
 }
 
-void TextureGSPanel::_detach() {}
+void TextureGSMeshPanel::_detach() {}
 
-void TextureGSPanel::_onResize(float width, float height) {
+void TextureGSMeshPanel::_onResize(float width, float height) {
 
   // projection matrix
   camera->onResize(width, height);
 }
 
-void TextureGSPanel::_render() {
+void TextureGSMeshPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImDrawList *drawList;
@@ -73,7 +72,7 @@ void TextureGSPanel::_render() {
   }
 }
 
-void TextureGSPanel::_renderParameterization() {
+void TextureGSMeshPanel::_renderParameterization() {
 
   const glm::vec2 contentSize = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
   ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -129,7 +128,7 @@ void TextureGSPanel::_renderParameterization() {
   // TODO: render controls
 }
 
-void TextureGSPanel::_controls() {
+void TextureGSMeshPanel::_controls() {
 
   if (ImGui::BeginSideBar("sidebar##gs_texture_panel_sidebar")) {
 

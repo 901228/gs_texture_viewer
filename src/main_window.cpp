@@ -18,6 +18,7 @@
 #include "panel/page_panel/gaussian_panel.hpp"
 #include "panel/page_panel/geodesic_gs_panel.hpp"
 #include "panel/page_panel/model_panel.hpp"
+#include "panel/page_panel/texture_gs_mesh_panel.hpp"
 #include "panel/page_panel/texture_gs_panel.hpp"
 #include "utils/imgui/icon.hpp"
 #include "utils/imgui/opengl.hpp"
@@ -189,6 +190,7 @@ bool MainWindow::Init(bool isMultiViewport) {
 
   // panels
   {
+    panels.push_back(std::make_unique<TextureGSMeshPanel>());
     panels.push_back(std::make_unique<TextureGSPanel>());
     panels.push_back(std::make_unique<GeodesicTextureGSPanel>());
     panels.push_back(std::make_unique<ModelPanel>());
