@@ -3,11 +3,8 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
-
-#include <cuda_runtime.h>
 
 class Program;
 
@@ -16,7 +13,6 @@ namespace TextureWrap {
 enum class Mode : int { Repeat, Mirror, Clamp, Border };
 
 int gl(Mode mode);
-cudaTextureAddressMode cuda(Mode mode);
 
 }; // namespace TextureWrap
 
@@ -28,6 +24,14 @@ public:
                                               TextureWrap::Mode wrapX = TextureWrap::Mode::Border,
                                               TextureWrap::Mode wrapY = TextureWrap::Mode::Border);
 
+  // Create a texture from an in-memory encoded image buffer (e.g. a glb embedded
+  // PNG/JPEG). Unlike create(), the image is NOT flipped vertically so it follows
+  // the glTF UV convention (origin at top-left).
+  static std::unique_ptr<ImageTexture> createFromMemory(const std::string &name, const unsigned char *buffer,
+                                                        int length, ColorType colorType = ColorType::Auto,
+                                                        TextureWrap::Mode wrapX = TextureWrap::Mode::Repeat,
+                                                        TextureWrap::Mode wrapY = TextureWrap::Mode::Repeat);
+
   explicit ImageTexture(const std::string &path, const unsigned int &id, const float &width,
                         const float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY,
                         ColorType colorType);
@@ -36,6 +40,14 @@ public:
 private:
   static bool loadImage(const std::string &path, unsigned int &id, float &width, float &height,
                         TextureWrap::Mode wrapX, TextureWrap::Mode wrapY, ColorType &colorType);
+  static bool loadImageFromMemory(const unsigned char *buffer, int length, unsigned int &id, float &width,
+                                  float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY,
+                                  ColorType &colorType);
+  // Uploads decoded pixels to a freshly generated GL texture. `data` holds `channels`
+  // interleaved 8-bit components. Returns false (and frees nothing) on unsupported channel counts.
+  static bool uploadToGL(const unsigned char *data, int w, int h, int channels, unsigned int &id,
+                         float &width, float &height, TextureWrap::Mode wrapX, TextureWrap::Mode wrapY,
+                         ColorType &colorType);
 
 private:
   unsigned int _id = 0;
@@ -58,18 +70,6 @@ public:
 
 public:
   void setupUniforms(const Program &program, unsigned int index, std::string location = {}) const;
-
-private:
-  std::optional<cudaTextureObject_t> _cudaTextureId;
-  bool toCuda();
-
-public:
-  [[nodiscard]] inline cudaTextureObject_t cudaTextureId() {
-    if (!_cudaTextureId.has_value()) {
-      toCuda();
-    }
-    return _cudaTextureId.value();
-  }
 
 public:
   static void saveTextureList(const std::vector<std::unique_ptr<ImageTexture>> &list,
@@ -94,6 +94,15 @@ private:
   std::unique_ptr<ImageTexture> _mask;
 
   float _heightScale;
+
+public:
+  // How the height map is applied. The integer values must match the heightMode
+  // uniform consumed by shader.tese / shader.frag.
+  enum class HeightMode : int { None = 0, ParallaxOcclusion = 1, TessellationDisplacement = 2 };
+
+private:
+  HeightMode _heightMode = HeightMode::None;
+  int _tessLevel = 32; // subdivision level used in TessellationDisplacement mode
 
 public:
   [[nodiscard]] inline ImageTexture &basecolor() const { return *_basecolor; }

@@ -43,6 +43,7 @@
 build/
 Build/
 build-*/
+build_*/
 
 # Temporary files
 *.tmp
@@ -82,5 +83,6 @@ CMakeUserPresets.json
 imgui.ini
 
 # assets
-!assets/**/*.*
+# !assets/**/*.*
+/assets/
 textures.toml

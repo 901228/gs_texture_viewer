@@ -21,13 +21,10 @@
 #include "../utils.hpp"
 
 Model::Model()
-    : _renderingProgram(std::make_unique<Program>(Utils::Path::getShaderPath("lighting.vert"),
-                                                  Utils::Path::getShaderPath("lighting.frag"),
-                                                  Utils::Path::getShaderPath("lighting.geom"), "", "")),
-      // : _renderingProgram(std::make_unique<Program>(
-      //       Utils::Path::getShaderPath("shader.vert"), Utils::Path::getShaderPath("shader.frag"),
-      //       Utils::Path::getShaderPath("shader.geom"), Utils::Path::getShaderPath("shader.tesc"),
-      //       Utils::Path::getShaderPath("shader.tese"))),
+    : _renderingProgram(std::make_unique<Program>(
+          Utils::Path::getShaderPath("shader.vert"), Utils::Path::getShaderPath("shader.frag"),
+          Utils::Path::getShaderPath("shader.geom"), Utils::Path::getShaderPath("shader.tesc"),
+          Utils::Path::getShaderPath("shader.tese"))),
       _selectedID(std::make_unique<std::unordered_set<unsigned int>>()) {
   _mesh.request_vertex_status();
   _mesh.request_edge_status();
@@ -229,15 +226,13 @@ void Model::render(const Camera &camera, bool renderSelectedOnly, bool isWire, b
     for (const unsigned int i : *_selectedID)
       first.push_back(static_cast<int>(i * 3));
     std::vector<GLsizei> count(_selectedID->size(), 3);
-    // glMultiDrawArrays(GL_PATCHES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
-    glMultiDrawArrays(GL_TRIANGLES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
+    glMultiDrawArrays(GL_PATCHES, &first[0], &count[0], static_cast<GLsizei>(_selectedID->size()));
 
     _renderingProgram->setInt("isRenderSelect", false);
   }
 
   if (!renderSelectedOnly) {
-    // glDrawArrays(GL_PATCHES, 0, _elementAmount);
-    glDrawArrays(GL_TRIANGLES, 0, _elementAmount);
+    glDrawArrays(GL_PATCHES, 0, _elementAmount);
   }
 
   unUse();
@@ -349,79 +344,6 @@ std::vector<std::pair<unsigned int, std::pair<float, float>>> Model::getSelected
   }
 
   return result;
-}
-
-const ClosestPointResult Model::_closestPoint(const glm::vec3 &x) {
-
-  return _bvh.closestPoint(x);
-
-  std::optional<ClosestPointResult> cache = _cache.get(x);
-  if (!cache.has_value()) {
-    cache = _bvh.closestPoint(x);
-    _cache.put(x, cache.value());
-  }
-  return cache.value();
-}
-
-const float Model::eval(const glm::vec3 &x) {
-  auto r = _closestPoint(x);
-
-  float dist = glm::length(x - r.point);
-
-  // use barycentric interpolation to determine inside/outside
-  // dot = 0: x is on the surface
-  // dot > 0: x is outside the surface
-  // dot < 0: x is inside the surface
-  auto fh = _mesh.face_handle(r.faceIdx);
-  auto fv = _mesh.cfv_iter(fh);
-  glm::vec3 na = Utils::toGlm(_mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nb = Utils::toGlm(_mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nc = Utils::toGlm(_mesh.normal(*fv));
-  glm::vec3 surfNormal = glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
-
-  float sign = glm::dot(x - r.point, surfNormal) >= 0.f ? 1.f : -1.f;
-  return sign * dist;
-}
-
-const glm::vec3 Model::grad(const glm::vec3 &x) {
-  auto r = _closestPoint(x);
-
-  glm::vec3 diff = x - r.point;
-  float dist = glm::length(diff);
-
-  // if x is on the surface, use interpolated normal
-  if (dist < 1e-6f)
-    return normal(x);
-
-  // SDF gradient = unit vector pointing from closest point to x
-  return diff / dist;
-}
-
-const glm::vec3 Model::project(const glm::vec3 &x) {
-  auto r = _closestPoint(x);
-  return r.point;
-}
-
-const glm::vec3 Model::normal(const glm::vec3 &x) {
-  auto r = _closestPoint(x);
-
-  // guard: return fallback normal when faceIdx is invalid
-  if (r.faceIdx < 0 || r.faceIdx >= (int)_mesh.n_faces()) {
-    // this should not happen, add log to help locate
-    WARN("interpolateNormal: invalid faceIdx: {}", r.faceIdx);
-    return {0, 1, 0}; // fallback
-  }
-
-  auto fh = _mesh.face_handle(r.faceIdx);
-  auto fv = _mesh.cfv_iter(fh);
-  glm::vec3 na = Utils::toGlm(_mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nb = Utils::toGlm(_mesh.normal(*fv));
-  ++fv;
-  glm::vec3 nc = Utils::toGlm(_mesh.normal(*fv));
-  return glm::normalize(Utils::barycentric(r.bary, na, nb, nc));
 }
 
 std::optional<glm::vec3> Model::hit(const Camera &camera, const glm::vec2 &ndcPos) const {

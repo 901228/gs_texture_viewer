@@ -34,3 +34,6 @@
 [submodule "extern/MarchingCube/MarchingCubeCpp"]
 	path = extern/MarchingCube/MarchingCubeCpp
 	url = https://github.com/aparis69/MarchingCubeCpp
+[submodule "extern/assimp"]
+	path = extern/assimp
+	url = https://github.com/assimp/assimp.git

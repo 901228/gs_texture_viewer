@@ -7,19 +7,20 @@
 
 #include <glm/glm.hpp>
 
-#include "geodesic_splines.hpp"
 #include "mesh.hpp"
 
 class Model;
 
 namespace SolveUV {
 
-enum class SolvingMode : int { Harmonics, ExpMap, GeodesicSplines };
-
-std::tuple<GeodesicSplines::LogarithmicMap::LogMapTable, std::vector<glm::vec3>, float>
-SolveGeodesic(glm::vec3 hitPoint, GeodesicSplines::Implicit &model);
+enum class SolvingMode : int { Harmonics, ExpMap };
 
 void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID, Model &model,
+           std::optional<glm::vec3> hitPoint);
+
+// Mesh-only overload: runs the chosen parameterization directly on a MyMesh, so callers
+// that are not backed by a Model (e.g. GltfModel sub-meshes) can reuse the solvers.
+void Solve(const SolvingMode &mode, const std::unordered_set<unsigned int> &selectedID, MyMesh &mesh,
            std::optional<glm::vec3> hitPoint);
 
 void calculateTB(MyMesh &mesh);

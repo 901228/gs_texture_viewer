@@ -30,6 +30,11 @@ uniform bool isRenderSelect;
 
 uniform sampler2D heightMap;
 uniform float heightScale;
+uniform sampler2D mask;
+
+// height mapping mode: must match PBRTexture::HeightMode
+//   0 = none, 1 = parallax occlusion mapping, 2 = tessellation displacement
+uniform int heightMode;
 
 uniform float textureRadius;
 uniform vec2 textureOffset;
@@ -58,13 +63,16 @@ void main() {
   vec3 bitang  = INTERP(bitangent);
   int  sl_val  = tes_in[0].sl; // flat (pick first)
 
-  // Height map displacement
+  // Height map displacement (only in tessellation-displacement mode)
   int sl_min = min(tes_in[0].sl, min(tes_in[1].sl, tes_in[2].sl));
-  if ((isRenderTexture && !isEditTexture && sl_min >= 0) ||
-      (isRenderSelect && isEditTexture)) {
-    float h = getEditingTextureColor(heightMap, uv).r;
+  bool editing = isRenderSelect && isEditTexture;
+  bool baked = isRenderTexture && !isEditTexture && sl_min >= 0;
+  if (heightMode == 2 && (editing || baked)) {
+    float h = editing ? getEditingTextureColor(heightMap, uv).r : texture(heightMap, uv).r;
+    // gate displacement by the mask so transparent / non-masked areas stay flat
+    float m = editing ? getEditingTextureColor(mask, uv).r : texture(mask, uv).r;
 
-    pos += norm * h * heightScale;
+    pos += norm * h * heightScale * m;
   }
 
   // transform to world/view space after displacement

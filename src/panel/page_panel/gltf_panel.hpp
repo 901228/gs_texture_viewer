@@ -1,5 +1,5 @@
-#ifndef MODEL_PANEL_HPP
-#define MODEL_PANEL_HPP
+#ifndef GLTF_PANEL_HPP
+#define GLTF_PANEL_HPP
 #pragma once
 
 #include <memory>
@@ -9,16 +9,18 @@
 
 #include "page_panel.hpp"
 
-class Model;
+class GltfModel;
 class Camera;
 class TextureEditor;
 
-class ModelPanel : public PagePanel {
+// Panel for viewing a .glb scene: renders every sub-mesh with its PBR material under
+// directional lighting, and lets the user paint a decal texture onto one sub-mesh.
+class GltfPanel : public PagePanel {
 public:
-  ModelPanel();
-  ~ModelPanel() override;
+  GltfPanel();
+  ~GltfPanel() override;
 
-  inline std::string name() override { return "Model View"; }
+  inline std::string name() override { return "GLB View"; }
 
 protected:
   void _attach() override;
@@ -29,12 +31,10 @@ protected:
   void _controls() override;
 
 private:
-  // model
-  std::unique_ptr<Model> model;
+  std::unique_ptr<GltfModel> model;
   std::unique_ptr<Camera> camera;
 
 private:
-  // render options
   bool wire = false;
   bool _renderSelectedOnly = false;
 
@@ -42,12 +42,11 @@ private:
   RenderingMode _renderingMode = RenderingMode::Mesh;
 
 private:
-  // texture
   std::unique_ptr<TextureEditor> _textureEditor;
 
 private:
   glm::vec3 _lightDir{0, -1, 0};
-  float _lightIntensity = 0.5f;
+  float _lightIntensity = 1.0f;
 };
 
-#endif // !MODEL_PANEL_HPP
+#endif // !GLTF_PANEL_HPP

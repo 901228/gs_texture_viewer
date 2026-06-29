@@ -81,11 +81,15 @@ void main() {
   vec4 result = vec4(objectColor, 1.0f);
 
   if (isRenderTexture && !isEditTexture && sl >= 0) {
-    result = getTextureColor();
+    // Blend the texture over the base mesh color by its alpha, so transparent
+    // regions of the texture keep showing the underlying mesh instead of white.
+    vec4 texColor = getTextureColor();
+    result.rgb = mix(objectColor, texColor.rgb, texColor.a);
   }
   else if (isRenderSelect) {
     if (isEditTexture) {
-      result = getEditingTextureColor();
+      vec4 texColor = getEditingTextureColor();
+      result.rgb = mix(objectColor, texColor.rgb, texColor.a);
     }
     else if (isRenderTextureCoords) {
       result = vec4(fs_in.textureCoord, 0.0f, 1.0f);

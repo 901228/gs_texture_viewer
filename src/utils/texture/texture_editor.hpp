@@ -65,7 +65,6 @@ private:
 
 public:
   inline const SolveUV::SolvingMode solvingMode() const { return _solvingMode; }
-  inline const bool isGeodesic() const { return _solvingMode == SolveUV::SolvingMode::GeodesicSplines; }
 
 private:
   // texture

@@ -58,14 +58,30 @@ target_include_directories(stb PUBLIC "stb/")
 
 add_subdirectory(magic_enum)
 
+# assimp (only the glTF importer is needed for .glb loading)
+# Build assimp statically so there is no runtime DLL to ship next to the executable,
+# and let it build its own bundled zlib to avoid a system dependency.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "" FORCE)
+
+# assimp's own CMake adds /source-charset:utf-8, which conflicts with the inherited
+# /utf-8 (cl D8016). Strip the inherited compile options for the assimp subtree only;
+# assimp supplies its own charset/exception flags.
+get_directory_property(_saved_compile_options COMPILE_OPTIONS)
+set_property(DIRECTORY PROPERTY COMPILE_OPTIONS "")
+add_subdirectory(assimp)
+set_property(DIRECTORY PROPERTY COMPILE_OPTIONS "${_saved_compile_options}")
+
 add_library(IconsFont INTERFACE
   IconsFont/IconsFont/IconsLucide.h
 )
 target_include_directories(IconsFont INTERFACE "IconsFont/")
-
-add_library(marching_cube
-  MarchingCube/MarchingCubeCpp/MC.h
-  MarchingCube/MarchingCubeCpp/noise.h
-  MarchingCube/MarchingCube.cpp
-)
-target_include_directories(marching_cube PUBLIC "MarchingCube/")

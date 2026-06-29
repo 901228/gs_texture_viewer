@@ -11,11 +11,9 @@
 
 #include <IconsFont/IconsLucide.h>
 
-#include "../cache.hpp"
 #include "../gl/program.hpp"
 #include "../texture/texture.hpp"
 #include "../texture/texture_editor.hpp"
-#include "geodesic_splines.hpp"
 #include "hit_test.hpp"
 #include "mesh.hpp"
 #include "solve_uv.hpp"
@@ -29,7 +27,7 @@ namespace Light {
 static constexpr const char *icon = ICON_LC_LIGHTBULB;
 }
 
-class Model : public GeodesicSplines::Implicit, public TextureEditor::TextureEditableModel {
+class Model : public TextureEditor::TextureEditableModel {
 public:
   explicit Model();
   explicit Model(const char *path);
@@ -112,25 +110,6 @@ protected:
 public:
   [[nodiscard]] inline int tessLevel() const { return _tessLevel; }
   inline void setTessLevel(int level) { _tessLevel = std::clamp(level, 1, GL_MAX_TESS_GEN_LEVEL); }
-
-private:
-  struct GlmHash {
-    size_t operator()(const glm::vec3 &p) const {
-      size_t seed = 0;
-      Cache::hash_combine(seed, p.x);
-      Cache::hash_combine(seed, p.y);
-      return seed;
-    }
-  };
-
-  Cache::LRUCache<glm::vec3, ClosestPointResult, GlmHash> _cache{20};
-  const ClosestPointResult _closestPoint(const glm::vec3 &x);
-
-public:
-  const float eval(const glm::vec3 &x) override;
-  const glm::vec3 grad(const glm::vec3 &x) override;
-  const glm::vec3 project(const glm::vec3 &x) override;
-  const glm::vec3 normal(const glm::vec3 &x) override;
 
 public:
   std::optional<glm::vec3> hit(const Camera &camera, const glm::vec2 &ndcPos) const override;

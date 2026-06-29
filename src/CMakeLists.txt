@@ -10,10 +10,6 @@ file(GLOB src_files
   utils/imgui/*.cpp
   utils/mesh/*.cpp
   utils/texture/*.cpp
-
-  gaussian/model/*.cpp
-  gaussian/view/*.cpp
-  gaussian/view/renderer/*.cpp
 )
 
 # add src files to executable
@@ -28,8 +24,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   glad glfw imgui
   OpenMeshCore OpenMeshTools
   eigen glm::glm nfd::nfd CLI11::CLI11 spdlog::spdlog tomlplusplus::tomlplusplus stb
-  magic_enum::magic_enum IconsFont marching_cube
-  GAUSSIAN_LIB)
+  magic_enum::magic_enum IconsFont assimp)
 
 # copy executable to config build directory
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

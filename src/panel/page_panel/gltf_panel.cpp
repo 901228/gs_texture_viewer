@@ -1,4 +1,4 @@
-#include "model_panel.hpp"
+#include "gltf_panel.hpp"
 
 #include <memory>
 
@@ -10,35 +10,39 @@
 #include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/imgui/sidebar.hpp"
-#include "utils/mesh/model.hpp"
+#include "utils/mesh/gltf_model.hpp"
 #include "utils/texture/texture_editor.hpp"
 #include "utils/utils.hpp"
 
-ModelPanel::ModelPanel() : model(nullptr), camera(nullptr), _textureEditor(nullptr) {}
+GltfPanel::GltfPanel() : model(nullptr), camera(nullptr), _textureEditor(nullptr) {}
 
-ModelPanel::~ModelPanel() { detach(); }
+GltfPanel::~GltfPanel() { detach(); }
 
-void ModelPanel::_attach() {
+void GltfPanel::_attach() {
 
-  // model = std::make_unique<Model>(Utils::Path::getAssetsPath("models/ball.obj").c_str());
-  model = std::make_unique<Model>(Utils::Path::getAssetsPath("models/armadillo.obj").c_str());
-  camera = std::make_unique<TrackballCameraThree>(-6.0f);
+  model = std::make_unique<GltfModel>(Utils::Path::getAssetsPath("mannequin/mannequin.glb").c_str());
+
+  // Frame the camera to the model's size: glb scenes can be far larger or smaller than the
+  // sample .obj meshes, so derive the view distance and near/far planes from the bounding box.
+  glm::vec3 size = model->boxMax() - model->boxMin();
+  float diag = glm::length(size);
+  if (!(diag > 0.0f) || diag > 1e6f)
+    diag = 6.0f; // fallback when the model failed to load
+
+  TrackballCameraThreeSettings settings(/*fov*/ 30.0f, /*near*/ diag * 0.01f, /*far*/ diag * 20.0f,
+                                        /*distMin*/ diag * 0.05f, /*distMax*/ diag * 5.0f);
+  camera = std::make_unique<TrackballCameraThree>(-diag * 1.3f, settings);
   camera->setCenter(model->center());
   _textureEditor = std::make_unique<TextureEditor>(*model, true);
 }
 
-void ModelPanel::_detach() {}
+void GltfPanel::_detach() {}
 
-void ModelPanel::_onResize(float width, float height) {
+void GltfPanel::_onResize(float width, float height) { camera->onResize(width, height); }
 
-  // projection matrix
-  camera->onResize(width, height);
-}
-
-void ModelPanel::_render() {
+void GltfPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
-  ImDrawList *drawList;
 
   if (ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag)) {
 
@@ -60,45 +64,37 @@ void ModelPanel::_render() {
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
-
-    drawList = ImGui::GetWindowDrawList();
   }
   ImGui::EndOpenGL();
 }
 
-void ModelPanel::_renderParameterization() {
+void GltfPanel::_renderParameterization() {
 
   const glm::vec2 contentSize = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImDrawList *drawList = ImGui::GetWindowDrawList();
 
-  // draw image
   _textureEditor->renderImage();
 
-  // draw texture coords
   std::vector<TextureLine> lines = model->getSelectedTextureLines();
   if (!lines.empty()) {
-
-    // draw texture coords
     for (const TextureLine &line : lines) {
       float x0 = pos.x + line.first.first * contentSize.x;
       float y0 = pos.y + line.first.second * contentSize.y;
       float x1 = pos.x + line.second.first * contentSize.x;
       float y1 = pos.y + line.second.second * contentSize.y;
-      drawList->AddLine({x0, y0}, {x1, y1}, 0xFF000000, // black
-                        1);
+      drawList->AddLine({x0, y0}, {x1, y1}, 0xFF000000, 1);
     }
   }
 
-  // handle parameterization input
   _textureEditor->handleTextureInput();
 }
 
-void ModelPanel::_controls() {
+void GltfPanel::_controls() {
 
-  if (ImGui::BeginSideBar("sidebar##model_panel_sidebar")) {
+  if (ImGui::BeginSideBar("sidebar##gltf_panel_sidebar")) {
 
-    if (ImGui::BeginSideBarItem("render##model_panel_sidebar", Model::icon)) {
+    if (ImGui::BeginSideBarItem("render##gltf_panel_sidebar", GltfModel::icon)) {
 
       ImGui::Checkbox("wire", &wire);
       ImGui::Checkbox("render selected only", &_renderSelectedOnly);
@@ -108,7 +104,7 @@ void ModelPanel::_controls() {
       ImGui::EndSideBarItem();
     }
 
-    if (ImGui::BeginSideBarItem("light##model_panel_sidebar", Light::icon)) {
+    if (ImGui::BeginSideBarItem("light##gltf_panel_sidebar", ICON_LC_LIGHTBULB)) {
 
       ImGui::GizmoArrow2D("##Light Direction", _lightDir);
       ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
@@ -116,14 +112,14 @@ void ModelPanel::_controls() {
       ImGui::EndSideBarItem();
     }
 
-    if (ImGui::BeginSideBarItem("camera##model_panel_sidebar", Camera::icon)) {
+    if (ImGui::BeginSideBarItem("camera##gltf_panel_sidebar", Camera::icon)) {
 
       camera->controls(model->center());
 
       ImGui::EndSideBarItem();
     }
 
-    if (ImGui::BeginSideBarItem("textures##model_panel_sidebar", TextureEditor::icon)) {
+    if (ImGui::BeginSideBarItem("textures##gltf_panel_sidebar", TextureEditor::icon)) {
 
       _textureEditor->controls();
 

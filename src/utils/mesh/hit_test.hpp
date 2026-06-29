@@ -14,7 +14,6 @@ struct HitResult {
 };
 
 /**
- * For Geodesic Splines
  * Given a point, find the closest point on the mesh.
  */
 struct ClosestPointResult {

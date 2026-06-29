@@ -10,7 +10,6 @@
 #include "../utils.hpp"
 #include "texture.hpp"
 #include "utils/camera/camera.hpp"
-#include "utils/mesh/geodesic_splines.hpp"
 #include "utils/mesh/solve_uv.hpp"
 
 TextureEditor::TextureEditor(TextureEditableModel &model, bool isPBR, const std::string_view textureListPath,
@@ -137,20 +136,6 @@ void TextureEditor::controls() {
 
     ImGui::Combo("Method", reinterpret_cast<int *>(&_solvingMode),
                  Utils::enumToImGuiCombo<SolveUV::SolvingMode>().c_str());
-
-    if (_solvingMode == SolveUV::SolvingMode::GeodesicSplines) {
-
-      if (ImGui::CollapsingHeader("Geodesic Splines")) {
-
-        ImGui::SliderInt("m (lines)", &GeodesicSplines::settings.m, 40, 100);
-        ImGui::SliderInt("n (step)", &GeodesicSplines::settings.n, 20, 300);
-        ImGui::SliderFloat("h (step size)", &GeodesicSplines::settings.h, 0.01f, 0.1f, "%.2f");
-        ImGui::Checkbox("Use Sub-Stepped Project", &GeodesicSplines::settings.useSubSteppedProject);
-        ImGui::Checkbox("Enable Smoothing", &GeodesicSplines::settings.enableSmoothing);
-        ImGui::Checkbox("Show Debug", &GeodesicSplines::debugStruct.show);
-        ImGui::NewLine();
-      }
-    }
 
     if (ImGui::Button("Calculate Parameterization", {ImGui::GetContentRegionAvail().x, 0})) {
       _model.solve(_solvingMode, _selectMode == SelectMode::Point ? _hitResult : std::nullopt);
@@ -338,7 +323,6 @@ void TextureEditor::handleBrushInput(const Camera &camera, float width, float he
     bool isLeftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     bool isRightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
     if (isLeftDown || isRightDown) {
-      GeodesicSplines::debugStruct.center = _hitResult.value();
 
       // handle select mesh face
       if (_selectMode == SelectMode::Faces) {
