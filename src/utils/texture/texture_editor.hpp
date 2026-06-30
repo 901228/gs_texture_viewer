@@ -34,10 +34,10 @@ private:
 public:
   explicit TextureEditor(TextureEditableModel &model, bool isPBR = false,
                          const std::string_view textureListPath = TextureEditor::textureListPath,
-                         float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 2.0f);
+                         float scaleStep = 0.1f, float scaleMin = 0.1f, float scaleMax = 6.0f);
   ~TextureEditor();
 
-  void renderImage(float repeatSize = 2);
+  void renderImage(float repeatSize = 7);
   void handleTextureInput();
   void handleBrushInput(const Camera &camera, float width, float height);
   void controls();
@@ -116,7 +116,7 @@ private:
   float _scale = 1.0f;
   const float _scaleStep = 0.1f;
   const float _scaleMin = 0.1f;
-  const float _scaleMax = 2.0f;
+  const float _scaleMax = 6.0f;
 
   // move
   glm::vec2 _offset{};
