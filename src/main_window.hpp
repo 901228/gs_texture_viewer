@@ -44,7 +44,7 @@ private:
 
 private:
   // constants
-  const float windowWidth = 1000;
+  const float windowWidth = 1100;
   const float windowHeight = 800;
 
 public:
