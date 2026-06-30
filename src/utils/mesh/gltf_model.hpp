@@ -43,7 +43,7 @@ public:
               bool isRenderTexture, int currentTextureId,
               const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
               const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
-              const glm::vec3 &lightDirection, float lightIntensity);
+              const glm::vec3 &lightDirection, float lightIntensity, bool flipNormals);
 
   [[nodiscard]] glm::vec3 boxMin() const { return _boxmin; }
   [[nodiscard]] glm::vec3 boxMax() const { return _boxmax; }

@@ -35,6 +35,7 @@ uniform float metallicFactor;
 uniform float roughnessFactor;
 uniform vec3  emissiveFactor;
 uniform bool  hasNormalTex;
+uniform bool  flipNormals; // negate the geometric normal (e.g. when glb normals point inward)
 
 // ---- decal (the user's PBR texture), only on the active sub-mesh ----
 uniform bool isActiveSubMesh;
@@ -121,6 +122,8 @@ void main() {
 
   // ---- normal ----
   vec3 N = normalize(fs_in.normal);
+  if (flipNormals)
+    N = -N;
   vec3 V = normalize(viewPos - fs_in.worldPos);
 
   if (hasNormalTex && length(fs_in.matT) > 1e-5) {

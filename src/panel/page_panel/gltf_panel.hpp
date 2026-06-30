@@ -37,6 +37,7 @@ private:
 private:
   bool wire = false;
   bool _renderSelectedOnly = false;
+  bool _flipNormals = false;
 
   enum class RenderingMode : int { Mesh, TextureCoords, Texture };
   RenderingMode _renderingMode = RenderingMode::Mesh;

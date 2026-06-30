@@ -306,7 +306,7 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
                        bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
                        const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
                        const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
-                       const glm::vec3 &lightDirection, float lightIntensity) {
+                       const glm::vec3 &lightDirection, float lightIntensity, bool flipNormals) {
 
   _program->use();
 
@@ -320,6 +320,7 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
   _program->setFloat("lightIntensity", lightIntensity);
 
   _program->setInt("isRenderTextureCoords", isRenderTextureCoords);
+  _program->setInt("flipNormals", flipNormals);
 
   // decal placement transform (shared by every sub-mesh; only the active one samples it)
   _program->setFloat("textureRadius", textureRadius);
