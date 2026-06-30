@@ -102,7 +102,8 @@ public:
 
 private:
   HeightMode _heightMode = HeightMode::None;
-  int _tessLevel = 32; // subdivision level used in TessellationDisplacement mode
+  int _tessLevel = 32;          // subdivision level used in TessellationDisplacement mode
+  bool _invertHeight = false;   // flip the displacement direction (e.g. when mesh normals point inward)
 
 public:
   [[nodiscard]] inline ImageTexture &basecolor() const { return *_basecolor; }

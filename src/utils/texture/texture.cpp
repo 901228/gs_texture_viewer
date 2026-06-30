@@ -260,8 +260,10 @@ void PBRTexture::controls() {
   if (_heightMode != HeightMode::None)
     ImGui::SliderFloat("height scale", &_heightScale, 0.0f, 1.0f);
 
-  if (_heightMode == HeightMode::TessellationDisplacement)
+  if (_heightMode == HeightMode::TessellationDisplacement) {
     ImGui::SliderInt("tessellation level", &_tessLevel, 1, 64);
+    ImGui::Checkbox("invert displacement", &_invertHeight);
+  }
 }
 
 void PBRTexture::setupUniforms(const Program &program, unsigned int index,
@@ -286,6 +288,7 @@ void PBRTexture::setupUniforms(const Program &program, unsigned int index,
   program.setFloat(location.heightScale.c_str(), heightScale());
 
   program.setInt("heightMode", static_cast<int>(_heightMode));
+  program.setInt("heightInvert", _invertHeight ? 1 : 0);
 
   // Only subdivide when actually displacing geometry; other modes stay at 1
   // (a single patch = the original triangle).

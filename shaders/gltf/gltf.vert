@@ -10,36 +10,35 @@ layout(location = 6) in vec3 matBitangent;
 layout(location = 7) in vec3 decalTangent;
 layout(location = 8) in vec3 decalBitangent;
 
-uniform mat4 projection_matrix;
-uniform mat4 view_matrix;
 uniform mat4 model_matrix;
 
-out VS_OUT {
+// World-space attributes are passed straight through; the tessellation evaluation
+// shader does the view/projection transform (and optional height displacement).
+out VtxData {
   vec3 worldPos;
   vec3 normal;
   vec2 uv0;
   vec2 uvDecal;
-  vec3 matT;   // world-space, not normalized (may be zero if no tangents)
+  vec3 matT;
   vec3 matB;
   vec3 decalT;
   vec3 decalB;
-} vs_out;
-
-flat out int sl;
+  int  sl;
+} v;
 
 void main() {
   vec4 wp = model_matrix * vec4(position, 1.0);
   mat3 nm = transpose(inverse(mat3(model_matrix)));
 
-  vs_out.worldPos = wp.xyz;
-  vs_out.normal   = normalize(nm * normal);
-  vs_out.uv0      = uv0;
-  vs_out.uvDecal  = uvDecal;
-  vs_out.matT     = nm * matTangent;
-  vs_out.matB     = nm * matBitangent;
-  vs_out.decalT   = nm * decalTangent;
-  vs_out.decalB   = nm * decalBitangent;
-  sl = sl_in;
+  v.worldPos = wp.xyz;
+  v.normal   = normalize(nm * normal);
+  v.uv0      = uv0;
+  v.uvDecal  = uvDecal;
+  v.matT     = nm * matTangent;
+  v.matB     = nm * matBitangent;
+  v.decalT   = nm * decalTangent;
+  v.decalB   = nm * decalBitangent;
+  v.sl       = sl_in;
 
-  gl_Position = projection_matrix * view_matrix * wp;
+  gl_Position = wp; // overridden by the tessellation evaluation shader
 }

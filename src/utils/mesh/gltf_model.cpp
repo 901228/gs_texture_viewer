@@ -61,7 +61,9 @@ std::unique_ptr<ImageTexture> loadMaterialTexture(const aiScene *scene, const ai
 
 GltfModel::GltfModel(const char *path)
     : _program(std::make_unique<Program>(Utils::Path::getShaderPath("gltf/gltf.vert"),
-                                         Utils::Path::getShaderPath("gltf/gltf.frag"), "", "", "")) {
+                                         Utils::Path::getShaderPath("gltf/gltf.frag"), "",
+                                         Utils::Path::getShaderPath("gltf/gltf.tesc"),
+                                         Utils::Path::getShaderPath("gltf/gltf.tese"))) {
 
   // 1x1 white fallback bound to any missing material slot so the shader can always sample.
   glGenTextures(1, &_whiteTexture);
@@ -368,19 +370,22 @@ void GltfModel::renderSubMesh(SubMesh &sm, bool isActive, int currentTextureId, 
   _program->setInt("isActiveSubMesh", isActive);
   _program->setInt("hasDecal", hasDecal);
 
+  // defaults: no displacement, no subdivision. setupUniforms() overrides heightMode/tessLevel
+  // for the active sub-mesh that carries the decal.
+  _program->setInt("heightMode", 0);
+  _program->setFloat("tessLevel", 1.0f);
+
   if (hasDecal) {
     // bind the editor's PBR decal on units 5..8 (basecolor/normal/height/mask) and
-    // reuse the PBRTexture uniform plumbing (heightMode / decalHeightScale).
+    // reuse the PBRTexture uniform plumbing (heightMode / tessLevel / decalHeightScale).
     pbrTexture->setupUniforms(*_program, 5,
                               PBRTexture::PBRTextureLocation{"decal.basecolor", "decal.normal",
                                                              "decalHeightMap", "decalRoughness", "decalMask",
                                                              "decalHeightScale"});
-  } else {
-    _program->setInt("heightMode", 0);
   }
 
   glBindVertexArray(sm.vao);
-  glDrawArrays(GL_TRIANGLES, 0, sm.elementCount);
+  glDrawArrays(GL_PATCHES, 0, sm.elementCount);
 }
 
 std::optional<glm::vec3> GltfModel::hit(const Camera &camera, const glm::vec2 &ndcPos) const {
