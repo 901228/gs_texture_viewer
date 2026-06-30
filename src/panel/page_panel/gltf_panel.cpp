@@ -67,12 +67,27 @@ void GltfPanel::_attach() {
 
 void GltfPanel::_detach() {}
 
+std::vector<Light> GltfPanel::effectiveLights() const {
+  std::vector<Light> lights = _lights;
+  if (_orbitAngle != 0.0f)
+    for (Light &l : lights)
+      if (l.animate)
+        l.azimuth = std::fmod(l.azimuth + _orbitAngle, 360.0f);
+  return lights;
+}
+
 void GltfPanel::_onResize(float width, float height) { camera->onResize(width, height); }
 
 void GltfPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImVec2 viewOrigin{};
+
+  // advance the light orbit animation
+  if (_animateOrbit)
+    _orbitAngle = std::fmod(_orbitAngle + _orbitSpeed * ImGui::GetIO().DeltaTime, 360.0f);
+
+  const std::vector<Light> lights = effectiveLights();
 
   bool open = ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag);
   if (open) {
@@ -92,7 +107,7 @@ void GltfPanel::_render() {
     model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
                   _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
-                  _textureEditor->theta(), _textureEditor->selectedPBR(), _lights, _flipNormals);
+                  _textureEditor->theta(), _textureEditor->selectedPBR(), lights, _flipNormals);
 
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
@@ -102,10 +117,10 @@ void GltfPanel::_render() {
 
   // light gizmos are drawn after EndOpenGL so they sit on top of the blitted scene image
   if (open && _showLights)
-    renderLightGizmos(viewOrigin.x, viewOrigin.y);
+    renderLightGizmos(viewOrigin.x, viewOrigin.y, lights);
 }
 
-void GltfPanel::renderLightGizmos(float originX, float originY) {
+void GltfPanel::renderLightGizmos(float originX, float originY, const std::vector<Light> &lights) {
 
   const glm::vec3 center = model->center();
   float radius = 0.5f * glm::length(model->boxMax() - model->boxMin());
@@ -135,7 +150,7 @@ void GltfPanel::renderLightGizmos(float originX, float originY) {
   ImDrawList *dl = ImGui::GetForegroundDrawList();
   dl->PushClipRect({originX, originY}, {originX + _width, originY + _height}, true);
 
-  for (const Light &l : _lights) {
+  for (const Light &l : lights) {
     if (!l.enabled)
       continue;
 
@@ -224,6 +239,24 @@ void GltfPanel::_controls() {
 
       ImGui::Checkbox("show lights in view", &_showLights);
 
+      // orbit animation: advances the shared clock; each light opts in via its own
+      // "animate" checkbox below, so you can orbit some lights while others stay fixed.
+      ImGui::Checkbox("animate orbit", &_animateOrbit);
+      ImGui::BeginDisabled(!_animateOrbit);
+      ImGui::SliderFloat("orbit speed", &_orbitSpeed, 5.0f, 360.0f, "%.0f deg/s");
+      ImGui::EndDisabled();
+      ImGui::SameLine();
+      if (ImGui::SmallButton("reset"))
+        _orbitAngle = 0.0f; // just undo the orbit offset
+
+      // restore every light to its frame-0 state (default rig) and clear the orbit
+      if (ImGui::Button("Reset Light Positions", {ImGui::GetContentRegionAvail().x, 0})) {
+        _lights = defaultLights();
+        _orbitAngle = 0.0f;
+      }
+
+      ImGui::NewLine();
+
       ImGui::BeginDisabled(_lights.size() >= MAX_LIGHTS);
       if (ImGui::Button("Add Light", {ImGui::GetContentRegionAvail().x, 0}))
         _lights.emplace_back();
@@ -237,6 +270,8 @@ void GltfPanel::_controls() {
         ImGui::SeparatorText(("Light " + std::to_string(i + 1)).c_str());
 
         ImGui::Checkbox("enabled", &l.enabled);
+        ImGui::SameLine();
+        ImGui::Checkbox("animate", &l.animate);
         ImGui::SameLine();
         if (ImGui::SmallButton("delete"))
           toDelete = i;

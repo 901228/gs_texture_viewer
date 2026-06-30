@@ -51,11 +51,19 @@ private:
   std::vector<Light> _lights = defaultLights();
   bool _showLights = true;
 
+  // Light orbit animation: while enabled, an azimuth offset advances over time so the
+  // whole rig circles the model (handy for reviewing a PBR texture from every angle).
+  bool _animateOrbit = false;
+  float _orbitSpeed = 60.0f; // degrees per second
+  float _orbitAngle = 0.0f;  // current accumulated offset, degrees
+
   // A reasonable three-point-ish lighting rig used as the starting setup.
   static std::vector<Light> defaultLights();
+  // _lights with the current orbit offset applied to each light's azimuth.
+  std::vector<Light> effectiveLights() const;
   // Draw a 2D overlay gizmo (sun marker + incoming-direction arrow) for each enabled
-  // light, projected into the 3D view whose top-left is (originX, originY).
-  void renderLightGizmos(float originX, float originY);
+  // light in `lights`, projected into the 3D view whose top-left is (originX, originY).
+  void renderLightGizmos(float originX, float originY, const std::vector<Light> &lights);
 };
 
 #endif // !GLTF_PANEL_HPP

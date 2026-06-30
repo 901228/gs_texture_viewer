@@ -20,6 +20,7 @@ struct Light {
   glm::vec3 color{1.0f};       // linear RGB
   float intensity = 1.0f;      //
   bool enabled = true;         //
+  bool animate = true;         // whether this light follows the orbit animation
 
   [[nodiscard]] glm::vec3 direction() const {
     float a = glm::radians(azimuth);
