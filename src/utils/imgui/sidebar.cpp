@@ -99,9 +99,13 @@ static std::unordered_map<ImGuiID, SideBarStatus> SideBarStatusMap;
 
 bool BeginSideBar(const char *str_id, const ImVec2 &size) {
 
-  int beginFlag = BeginChild(str_id, size);
+  bool beginFlag = BeginChild(str_id, size);
   if (!beginFlag) {
-    return beginFlag;
+    // Modern ImGui requires EndChild() to be called even when BeginChild() returns
+    // false (e.g. the host window is clipped); otherwise the child is left on the
+    // window stack and the frame-end check asserts "Must call EndChild() and not End()".
+    EndChild();
+    return false;
   }
 
   const ImGuiID itemID = GetID(str_id);
