@@ -36,6 +36,15 @@ private:
   std::unique_ptr<GltfModel> model;
   std::unique_ptr<Camera> camera;
 
+  // model picker: glb/gltf files discovered under assets/models
+  std::vector<std::string> _modelPaths;
+  std::string _modelComboItems; // '\0'-separated labels for ImGui::Combo
+  int _currentModel = 0;
+  int _pendingModel = -1; // a model switch requested from the UI, applied at the next render
+
+  void scanModels();
+  void loadModel(const std::string &path);
+
 private:
   bool wire = false;
   bool _renderSelectedOnly = false;

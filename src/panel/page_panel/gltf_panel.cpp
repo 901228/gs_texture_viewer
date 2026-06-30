@@ -1,10 +1,12 @@
 #include "gltf_panel.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <filesystem>
 #include <memory>
 
 #include <glad/gl.h>
-
-#include <cmath>
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -47,7 +49,50 @@ std::vector<Light> GltfPanel::defaultLights() {
 
 void GltfPanel::_attach() {
 
-  model = std::make_unique<GltfModel>(Utils::Path::getAssetsPath("models/mannequin/mannequin.glb").c_str());
+  scanModels();
+
+  const std::string path = _modelPaths.empty()
+                               ? Utils::Path::getAssetsPath("models/mannequin/mannequin.glb")
+                               : _modelPaths[_currentModel];
+  loadModel(path);
+}
+
+void GltfPanel::scanModels() {
+  namespace fs = std::filesystem;
+
+  _modelPaths.clear();
+  _modelComboItems.clear();
+  _currentModel = 0;
+
+  const std::string root = Utils::Path::getAssetsPath("models");
+  std::error_code ec;
+  if (fs::exists(root, ec)) {
+    for (const auto &entry : fs::recursive_directory_iterator(root, ec)) {
+      if (!entry.is_regular_file())
+        continue;
+      std::string ext = entry.path().extension().string();
+      std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+      if (ext == ".glb" || ext == ".gltf")
+        _modelPaths.push_back(entry.path().string());
+    }
+  }
+  std::sort(_modelPaths.begin(), _modelPaths.end());
+
+  // build the '\0'-separated combo labels (path relative to assets/models) and default to the
+  // mannequin if it is present.
+  const fs::path rootPath(root);
+  for (size_t i = 0; i < _modelPaths.size(); ++i) {
+    std::string label = fs::relative(_modelPaths[i], rootPath).generic_string();
+    _modelComboItems += label;
+    _modelComboItems += '\0';
+    if (label.find("mannequin/mannequin") != std::string::npos)
+      _currentModel = static_cast<int>(i);
+  }
+}
+
+void GltfPanel::loadModel(const std::string &path) {
+
+  model = std::make_unique<GltfModel>(path.c_str());
 
   // Frame the camera to the model's size: glb scenes can be far larger or smaller than the
   // sample .obj meshes, so derive the view distance and near/far planes from the bounding box.
@@ -62,6 +107,8 @@ void GltfPanel::_attach() {
   camera->setCenter(model->center());
   // scale navigation speed to the model so panning/zooming a large glb isn't sluggish
   camera->setMoveSpeed(glm::max(diag * 0.3f, 0.1f));
+  camera->onResize(_width, _height); // set the projection (no onResize fires on a hot swap)
+
   _textureEditor = std::make_unique<TextureEditor>(*model, true);
 }
 
@@ -79,6 +126,12 @@ std::vector<Light> GltfPanel::effectiveLights() const {
 void GltfPanel::_onResize(float width, float height) { camera->onResize(width, height); }
 
 void GltfPanel::_render() {
+
+  // apply a pending model switch requested from the controls panel last frame
+  if (_pendingModel >= 0 && _pendingModel < static_cast<int>(_modelPaths.size())) {
+    loadModel(_modelPaths[_pendingModel]);
+    _pendingModel = -1;
+  }
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImVec2 viewOrigin{};
@@ -225,6 +278,11 @@ void GltfPanel::_controls() {
   if (ImGui::BeginSideBar("sidebar##gltf_panel_sidebar")) {
 
     if (ImGui::BeginSideBarItem("render##gltf_panel_sidebar", GltfModel::icon)) {
+
+      // defer the (heavy) model load to the start of the next render, so it never runs
+      // inside the sidebar child window
+      if (!_modelPaths.empty() && ImGui::Combo("Model", &_currentModel, _modelComboItems.c_str()))
+        _pendingModel = _currentModel;
 
       ImGui::Checkbox("wire", &wire);
       ImGui::Checkbox("render selected only", &_renderSelectedOnly);
