@@ -33,6 +33,8 @@ void GltfPanel::_attach() {
                                         /*distMin*/ diag * 0.05f, /*distMax*/ diag * 5.0f);
   camera = std::make_unique<TrackballCameraThree>(-diag * 1.3f, settings);
   camera->setCenter(model->center());
+  // scale navigation speed to the model so panning/zooming a large glb isn't sluggish
+  camera->setMoveSpeed(glm::max(diag * 0.3f, 0.1f));
   _textureEditor = std::make_unique<TextureEditor>(*model, true);
 }
 

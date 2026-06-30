@@ -24,7 +24,7 @@ void Camera::handleInput(const ImVec2 &pos) {
 
     if (wheelDelta != 0) {
       _moveMode = MoveMode::Zoom;
-      _zoom(wheelDelta);
+      _zoom(wheelDelta * _moveSpeed);
       _moveMode = MoveMode::None;
     }
   }
@@ -80,6 +80,8 @@ void Camera::controls(const glm::vec3 &modelCenter) {
     setCenter(modelCenter);
   }
 
+  ImGui::SliderFloat("Move Speed", &_moveSpeed, 0.01f, 1000.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+
   _controls();
 }
 
@@ -97,7 +99,7 @@ void Camera::_onPanStart(const glm::vec2 &ndcMousePos) {
   }
 }
 void Camera::_onPanMove(const glm::vec2 &ndcMousePos) {
-  glm::vec2 mouseDelta = (ndcMousePos - _anchorMousePos) * _settings.panSpeed;
+  glm::vec2 mouseDelta = (ndcMousePos - _anchorMousePos) * _settings.panSpeed * _moveSpeed;
   _setCenter(_anchorCenter + _panLeft * mouseDelta.x - _panUp * mouseDelta.y);
 }
 void Camera::_onPanEnd() {

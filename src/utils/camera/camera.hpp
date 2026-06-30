@@ -45,6 +45,11 @@ public:
   inline void setCenter(const glm::vec3 &newCenter) { _setCenter(newCenter); }
   void controls(const glm::vec3 &modelCenter);
 
+  // Multiplier applied to pan and zoom speed. Larger models need a larger value so
+  // navigation does not feel sluggish; exposed as a slider in controls().
+  inline void setMoveSpeed(float speed) { _moveSpeed = speed; }
+  [[nodiscard]] inline float moveSpeed() const { return _moveSpeed; }
+
   static constexpr const char *icon = ICON_LC_CAMERA;
 
 protected:
@@ -54,6 +59,7 @@ protected:
 
 protected:
   CameraSettings _settings;
+  float _moveSpeed = 1.0f;
 
 protected:
   // projection matrix
