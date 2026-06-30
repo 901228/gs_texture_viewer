@@ -137,8 +137,9 @@ bool ImageTexture::loadImageFromMemory(const unsigned char *buffer, int length, 
     glGenTextures(1, &id);
 
     int w, h, nrComponents, desired_channels = static_cast<int>(colorType);
-    // glTF textures use a top-left UV origin, so do not flip on load.
-    stbi_set_flip_vertically_on_load(false);
+    // assimp normalizes glTF's top-left UVs to its OpenGL/bottom-left convention (it flips V),
+    // so embedded textures must be flipped on load to match (same as the on-disk path).
+    stbi_set_flip_vertically_on_load(true);
     data = stbi_load_from_memory(buffer, length, &w, &h, &nrComponents, desired_channels);
 
     if (data) {
