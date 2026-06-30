@@ -18,9 +18,15 @@ const float PI = 3.14159265359;
 
 uniform vec3 viewPos;
 
-// ---- directional light (single light, matching the mesh panel controls) ----
-uniform vec3 lightDirection;
-uniform float lightIntensity;
+// ---- directional lights ----
+#define MAX_LIGHTS 8
+struct Light {
+  vec3 direction; // direction the light travels (from light toward the scene)
+  vec3 color;
+  float intensity;
+};
+uniform Light lights[MAX_LIGHTS];
+uniform int numLights;
 
 uniform bool isRenderTextureCoords;
 
@@ -154,26 +160,30 @@ void main() {
     N = normalize(mix(N, normalize(decalTBN * dmapN), coverage));
   }
 
-  // ---- Cook-Torrance direct lighting (single directional light) ----
-  vec3 L = normalize(-lightDirection);
-  vec3 H = normalize(V + L);
-  float NdotL = max(dot(N, L), 0.0);
+  // ---- Cook-Torrance direct lighting (accumulate every enabled directional light) ----
   float NdotV = max(dot(N, V), 1e-4);
-  float NdotH = max(dot(N, H), 0.0);
-  float HdotV = max(dot(H, V), 0.0);
-
   vec3 F0 = mix(vec3(0.04), albedo, metallic);
-  float D = D_GGX(NdotH, roughness);
-  float G = G_Smith(NdotV, NdotL, roughness);
-  vec3 F = fresnelSchlick(HdotV, F0);
 
-  vec3 spec = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
-  vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
+  vec3 Lo = vec3(0.0);
+  for (int i = 0; i < numLights; ++i) {
+    vec3 L = normalize(-lights[i].direction);
+    vec3 H = normalize(V + L);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
+    float HdotV = max(dot(H, V), 0.0);
 
-  vec3 radiance = vec3(1.0) * lightIntensity;
-  vec3 Lo = (kd * albedo / PI + spec) * radiance * NdotL;
+    float D = D_GGX(NdotH, roughness);
+    float G = G_Smith(NdotV, NdotL, roughness);
+    vec3 F = fresnelSchlick(HdotV, F0);
 
-  vec3 ambient = 0.25 * albedo * occlusion;
+    vec3 spec = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
+    vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
+
+    vec3 radiance = lights[i].color * lights[i].intensity;
+    Lo += (kd * albedo / PI + spec) * radiance * NdotL;
+  }
+
+  vec3 ambient = 0.12 * albedo * occlusion;
   vec3 color = ambient + Lo + emissive;
 
   // Reinhard tonemap + gamma

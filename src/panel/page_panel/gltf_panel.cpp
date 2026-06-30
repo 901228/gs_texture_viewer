@@ -4,10 +4,13 @@
 
 #include <glad/gl.h>
 
+#include <cmath>
+
+#include <glm/gtc/type_ptr.hpp>
+
 #include "main_window.hpp"
 #include "utils/camera/camera.hpp"
 #include "utils/camera/trackball_camera_three.hpp"
-#include "utils/imgui/gizmo_arrow.hpp"
 #include "utils/imgui/opengl.hpp"
 #include "utils/imgui/sidebar.hpp"
 #include "utils/mesh/gltf_model.hpp"
@@ -18,9 +21,33 @@ GltfPanel::GltfPanel() : model(nullptr), camera(nullptr), _textureEditor(nullptr
 
 GltfPanel::~GltfPanel() { detach(); }
 
+std::vector<Light> GltfPanel::defaultLights() {
+  // A three-point rig: a strong warm key from the front-right, a soft cool fill from
+  // the front-left, and a neutral rim from behind/above to separate the silhouette.
+  Light key;
+  key.azimuth = 300.0f;
+  key.elevation = 35.0f;
+  key.color = {1.0f, 0.93f, 0.82f};
+  key.intensity = 3.0f;
+
+  Light fill;
+  fill.azimuth = 230.0f;
+  fill.elevation = 12.0f;
+  fill.color = {0.75f, 0.85f, 1.0f};
+  fill.intensity = 1.2f;
+
+  Light rim;
+  rim.azimuth = 90.0f;
+  rim.elevation = 50.0f;
+  rim.color = {1.0f, 1.0f, 1.0f};
+  rim.intensity = 1.8f;
+
+  return {key, fill, rim};
+}
+
 void GltfPanel::_attach() {
 
-  model = std::make_unique<GltfModel>(Utils::Path::getAssetsPath("mannequin/mannequin.glb").c_str());
+  model = std::make_unique<GltfModel>(Utils::Path::getAssetsPath("models/mannequin/mannequin.glb").c_str());
 
   // Frame the camera to the model's size: glb scenes can be far larger or smaller than the
   // sample .obj meshes, so derive the view distance and near/far planes from the bounding box.
@@ -45,8 +72,12 @@ void GltfPanel::_onResize(float width, float height) { camera->onResize(width, h
 void GltfPanel::_render() {
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImVec2 viewOrigin{};
 
-  if (ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag)) {
+  bool open = ImGui::BeginOpenGL("OpenGL", {_width, _height}, false, MainWindow::flag);
+  if (open) {
+
+    viewOrigin = ImGui::GetWindowPos(); // top-left of the 3D view (matches brush picking)
 
     float backgroundColor = 1.0f;
     static const GLfloat background[] = {backgroundColor, backgroundColor, backgroundColor, 1.0f};
@@ -61,14 +92,95 @@ void GltfPanel::_render() {
     model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
                   _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
-                  _textureEditor->theta(), _textureEditor->selectedPBR(), _lightDir, _lightIntensity,
-                  _flipNormals);
+                  _textureEditor->theta(), _textureEditor->selectedPBR(), _lights, _flipNormals);
 
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
     camera->handleInput(pos);
   }
   ImGui::EndOpenGL();
+
+  // light gizmos are drawn after EndOpenGL so they sit on top of the blitted scene image
+  if (open && _showLights)
+    renderLightGizmos(viewOrigin.x, viewOrigin.y);
+}
+
+void GltfPanel::renderLightGizmos(float originX, float originY) {
+
+  const glm::vec3 center = model->center();
+  float radius = 0.5f * glm::length(model->boxMax() - model->boxMin());
+  if (!(radius > 1e-4f))
+    radius = 1.0f;
+
+  const glm::mat4 vp = camera->projectionMatrix() * camera->viewMatrix();
+  auto project = [&](const glm::vec3 &p, ImVec2 &out) -> bool {
+    glm::vec4 clip = vp * glm::vec4(p, 1.0f);
+    if (clip.w <= 1e-5f) // behind the camera
+      return false;
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    out = ImVec2(originX + (ndc.x * 0.5f + 0.5f) * _width, originY + (1.0f - (ndc.y * 0.5f + 0.5f)) * _height);
+    return true;
+  };
+
+  // Anchor every gizmo at the projected model center and radiate the arrow outward by a
+  // fixed screen distance, so lights stay on-screen regardless of model size / zoom.
+  ImVec2 pCenter;
+  if (!project(center, pCenter))
+    return;
+
+  const float sunRadiusPx = 110.0f; // distance from center to the sun marker
+  const float innerGapPx = 16.0f;   // arrowhead stops short of the center
+
+  // foreground draw list so the gizmos sit on top of the child window that blits the scene
+  ImDrawList *dl = ImGui::GetForegroundDrawList();
+  dl->PushClipRect({originX, originY}, {originX + _width, originY + _height}, true);
+
+  for (const Light &l : _lights) {
+    if (!l.enabled)
+      continue;
+
+    glm::vec3 incoming = -l.direction(); // from the scene toward where the light sits
+    // screen-space incoming direction, via a projected world offset from the center
+    ImVec2 pProbe;
+    if (!project(center + incoming * radius, pProbe))
+      continue;
+
+    ImVec2 sdir{pProbe.x - pCenter.x, pProbe.y - pCenter.y};
+    float slen = std::sqrt(sdir.x * sdir.x + sdir.y * sdir.y);
+    if (slen < 1e-3f)
+      sdir = ImVec2(0.0f, -1.0f); // light points almost along the view axis: default to up
+    else {
+      sdir.x /= slen;
+      sdir.y /= slen;
+    }
+
+    ImVec2 pSun{pCenter.x + sdir.x * sunRadiusPx, pCenter.y + sdir.y * sunRadiusPx};
+    ImVec2 pArrowEnd{pCenter.x + sdir.x * innerGapPx, pCenter.y + sdir.y * innerGapPx};
+
+    ImU32 col = IM_COL32(static_cast<int>(glm::clamp(l.color.r, 0.0f, 1.0f) * 255.0f),
+                         static_cast<int>(glm::clamp(l.color.g, 0.0f, 1.0f) * 255.0f),
+                         static_cast<int>(glm::clamp(l.color.b, 0.0f, 1.0f) * 255.0f), 255);
+
+    // arrow pointing inward (the light's travel direction: from the sun toward the model)
+    dl->AddLine(pSun, pArrowEnd, col, 2.0f);
+    const float hs = 10.0f;
+    ImVec2 n{-sdir.y, sdir.x};
+    ImVec2 b1{pArrowEnd.x + sdir.x * hs + n.x * hs * 0.5f, pArrowEnd.y + sdir.y * hs + n.y * hs * 0.5f};
+    ImVec2 b2{pArrowEnd.x + sdir.x * hs - n.x * hs * 0.5f, pArrowEnd.y + sdir.y * hs - n.y * hs * 0.5f};
+    dl->AddTriangleFilled(pArrowEnd, b1, b2, col);
+
+    // sun marker with rays
+    dl->AddCircleFilled(pSun, 7.0f, col);
+    dl->AddCircle(pSun, 7.0f, IM_COL32(0, 0, 0, 255), 0, 1.5f);
+    for (int k = 0; k < 8; ++k) {
+      float a = static_cast<float>(k) * 0.7853982f; // 45 deg
+      ImVec2 r0{pSun.x + std::cos(a) * 9.0f, pSun.y + std::sin(a) * 9.0f};
+      ImVec2 r1{pSun.x + std::cos(a) * 13.0f, pSun.y + std::sin(a) * 13.0f};
+      dl->AddLine(r0, r1, col, 1.5f);
+    }
+  }
+
+  dl->PopClipRect();
 }
 
 void GltfPanel::_renderParameterization() {
@@ -110,8 +222,36 @@ void GltfPanel::_controls() {
 
     if (ImGui::BeginSideBarItem("light##gltf_panel_sidebar", ICON_LC_LIGHTBULB)) {
 
-      ImGui::GizmoArrow2D("##Light Direction", _lightDir);
-      ImGui::SliderFloat("Light Intensity", &_lightIntensity, 0.0f, 10.0f);
+      ImGui::Checkbox("show lights in view", &_showLights);
+
+      ImGui::BeginDisabled(_lights.size() >= MAX_LIGHTS);
+      if (ImGui::Button("Add Light", {ImGui::GetContentRegionAvail().x, 0}))
+        _lights.emplace_back();
+      ImGui::EndDisabled();
+
+      int toDelete = -1;
+      for (int i = 0; i < static_cast<int>(_lights.size()); ++i) {
+        ImGui::PushID(i);
+        Light &l = _lights[i];
+
+        ImGui::SeparatorText(("Light " + std::to_string(i + 1)).c_str());
+
+        ImGui::Checkbox("enabled", &l.enabled);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("delete"))
+          toDelete = i;
+
+        ImGui::BeginDisabled(!l.enabled);
+        ImGui::SliderFloat("azimuth", &l.azimuth, 0.0f, 360.0f, "%.0f deg");
+        ImGui::SliderFloat("elevation", &l.elevation, -90.0f, 90.0f, "%.0f deg");
+        ImGui::SliderFloat("intensity", &l.intensity, 0.0f, 10.0f);
+        ImGui::ColorEdit3("color", glm::value_ptr(l.color));
+        ImGui::EndDisabled();
+
+        ImGui::PopID();
+      }
+      if (toDelete >= 0)
+        _lights.erase(_lights.begin() + toDelete);
 
       ImGui::EndSideBarItem();
     }

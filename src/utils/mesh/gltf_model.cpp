@@ -306,7 +306,7 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
                        bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
                        const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
                        const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
-                       const glm::vec3 &lightDirection, float lightIntensity, bool flipNormals) {
+                       const std::vector<Light> &lights, bool flipNormals) {
 
   _program->use();
 
@@ -316,8 +316,19 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
   _program->setMat4("model_matrix", glm::value_ptr(modelMatrix));
   _program->setVec3("viewPos", glm::value_ptr(camera.eye()));
 
-  _program->setVec3("lightDirection", glm::value_ptr(lightDirection));
-  _program->setFloat("lightIntensity", lightIntensity);
+  // upload the enabled lights, packed contiguously into lights[0..numLights)
+  int lightCount = 0;
+  for (const Light &light : lights) {
+    if (!light.enabled || lightCount >= MAX_LIGHTS)
+      continue;
+    glm::vec3 dir = light.direction();
+    std::string base = "lights[" + std::to_string(lightCount) + "].";
+    _program->setVec3((base + "direction").c_str(), glm::value_ptr(dir));
+    _program->setVec3((base + "color").c_str(), glm::value_ptr(light.color));
+    _program->setFloat((base + "intensity").c_str(), light.intensity);
+    ++lightCount;
+  }
+  _program->setInt("numLights", lightCount);
 
   _program->setInt("isRenderTextureCoords", isRenderTextureCoords);
   _program->setInt("flipNormals", flipNormals);

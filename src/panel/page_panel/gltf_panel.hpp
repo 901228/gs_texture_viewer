@@ -4,10 +4,12 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <glm/glm.hpp>
 
 #include "page_panel.hpp"
+#include "utils/light.hpp"
 
 class GltfModel;
 class Camera;
@@ -46,8 +48,14 @@ private:
   std::unique_ptr<TextureEditor> _textureEditor;
 
 private:
-  glm::vec3 _lightDir{0, -1, 0};
-  float _lightIntensity = 1.0f;
+  std::vector<Light> _lights = defaultLights();
+  bool _showLights = true;
+
+  // A reasonable three-point-ish lighting rig used as the starting setup.
+  static std::vector<Light> defaultLights();
+  // Draw a 2D overlay gizmo (sun marker + incoming-direction arrow) for each enabled
+  // light, projected into the 3D view whose top-left is (originX, originY).
+  void renderLightGizmos(float originX, float originY);
 };
 
 #endif // !GLTF_PANEL_HPP
