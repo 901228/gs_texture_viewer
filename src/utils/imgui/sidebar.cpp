@@ -185,7 +185,9 @@ bool BeginSideBarItem(const char *str_id, const char *icon) {
   }
 
   SetCursorScreenPos(status.contentRect.Min);
-  bool beginFlag = selected && BeginChild(str_id, status.contentRect.GetSize());
+  // enable a horizontal scrollbar so controls wider than the (narrow) panel stay reachable
+  bool beginFlag =
+      selected && BeginChild(str_id, status.contentRect.GetSize(), false, ImGuiWindowFlags_HorizontalScrollbar);
   if (!beginFlag) {
     if (selected) {
       EndChild();
