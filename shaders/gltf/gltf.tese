@@ -42,6 +42,8 @@ uniform int  heightInvert; // 1 == displace inward (flip direction)
 uniform float textureRadius;
 uniform vec2  textureOffset;
 uniform float textureTheta;
+uniform bool  flipNormals; // when normals are flipped the tangent frame handedness flips,
+                           // mirroring the decal; compensate by mirroring the decal U here
 
 #define INTERP(attr)                                                                                          \
   (gl_TessCoord.x * te_in[0].attr + gl_TessCoord.y * te_in[1].attr + gl_TessCoord.z * te_in[2].attr)
@@ -56,6 +58,8 @@ void main() {
   vec3 norm     = normalize(INTERP(normal));
   vec2 uv0      = INTERP(uv0);
   vec2 uvDecal  = INTERP(uvDecal);
+  if (flipNormals) // mirror the decal horizontally to cancel the flipped-frame handedness
+    uvDecal.x = 1.0 - uvDecal.x;
   vec3 matT     = INTERP(matT);
   vec3 matB     = INTERP(matB);
   vec3 decalT   = INTERP(decalT);
