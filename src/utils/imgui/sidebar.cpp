@@ -74,7 +74,6 @@ struct SideBarStatus {
 
       ImVec2 textSize = ImGui::CalcTextSize(id, 0, true);
       iconNameWidth = std::max(iconNameWidth, textSize.x);
-      printf("%f\n", iconNameWidth);
       ImGui::RenderText({pos.x + ImGui::iconFullSize.x, pos.y + (ImGui::iconFullSize.y - textSize.y) * 0.5f},
                         id);
     }
