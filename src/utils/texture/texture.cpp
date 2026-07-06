@@ -259,7 +259,7 @@ void PBRTexture::controls() {
                "None\0Parallax Occlusion\0Tessellation Displacement\0");
 
   if (_heightMode != HeightMode::None)
-    ImGui::SliderFloat("height scale", &_heightScale, 0.0f, 1.0f);
+    ImGui::SliderFloat("height scale", &_heightScale, 0.0f, 5.0f);
 
   if (_heightMode == HeightMode::TessellationDisplacement) {
     ImGui::SliderInt("tessellation level", &_tessLevel, 1, 64);
