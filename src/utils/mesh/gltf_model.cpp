@@ -306,7 +306,7 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
                        bool isRenderTextureCoords, bool isRenderTexture, int currentTextureId,
                        const std::vector<std::unique_ptr<ImageTexture>> &textureList, float textureRadius,
                        const glm::vec2 &textureOffset, float textureTheta, PBRTexture *pbrTexture,
-                       const std::vector<Light> &lights, bool flipNormals) {
+                       const std::vector<Light> &lights, bool flipNormals, bool decalNormalOnly) {
 
   _program->use();
 
@@ -332,6 +332,7 @@ void GltfModel::render(const Camera &camera, bool renderSelectedOnly, bool isWir
 
   _program->setInt("isRenderTextureCoords", isRenderTextureCoords);
   _program->setInt("flipNormals", flipNormals);
+  _program->setInt("decalNormalOnly", decalNormalOnly);
 
   // decal placement transform (shared by every sub-mesh; only the active one samples it)
   _program->setFloat("textureRadius", textureRadius);
@@ -394,6 +395,11 @@ void GltfModel::renderSubMesh(SubMesh &sm, bool isActive, int currentTextureId, 
                               PBRTexture::PBRTextureLocation{"decal.basecolor", "decal.normal",
                                                              "decalHeightMap", "decalRoughness", "decalMask",
                                                              "decalHeightScale"});
+    // setupUniforms() does not bind the roughness map; bind it here (unit 9) so the decal
+    // region can use the logo's own roughness instead of the glb material's.
+    glActiveTexture(GL_TEXTURE9);
+    glBindTexture(GL_TEXTURE_2D, pbrTexture->roughness().id());
+    _program->setInt("decalRoughness", 9);
   }
 
   glBindVertexArray(sm.vao);

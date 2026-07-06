@@ -160,7 +160,8 @@ void GltfPanel::_render() {
     model->render(*camera, _renderSelectedOnly, wire, _renderingMode == RenderingMode::TextureCoords,
                   _renderingMode == RenderingMode::Texture, _textureEditor->selected(),
                   _textureEditor->textureList(), _textureEditor->scale(), _textureEditor->offset(),
-                  _textureEditor->theta(), _textureEditor->selectedPBR(), lights, _flipNormals);
+                  _textureEditor->theta(), _textureEditor->selectedPBR(), lights, _flipNormals,
+                  _decalNormalOnly);
 
     _textureEditor->handleBrushInput(*camera, _width, _height);
 
@@ -287,6 +288,7 @@ void GltfPanel::_controls() {
       ImGui::Checkbox("wire", &wire);
       ImGui::Checkbox("render selected only", &_renderSelectedOnly);
       ImGui::Checkbox("flip normals", &_flipNormals);
+      ImGui::Checkbox("decal normal only", &_decalNormalOnly);
       ImGui::Combo("Rendering Mode", reinterpret_cast<int *>(&_renderingMode),
                    Utils::enumToImGuiCombo<RenderingMode>().c_str());
 

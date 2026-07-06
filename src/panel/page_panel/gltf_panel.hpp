@@ -49,6 +49,7 @@ private:
   bool wire = false;
   bool _renderSelectedOnly = false;
   bool _flipNormals = false;
+  bool _decalNormalOnly = true; // use only the decal's own normal, ignoring the glb normal map
 
   enum class RenderingMode : int { Mesh, TextureCoords, Texture };
   RenderingMode _renderingMode = RenderingMode::Mesh;

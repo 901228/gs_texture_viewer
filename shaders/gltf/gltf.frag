@@ -41,7 +41,8 @@ uniform float metallicFactor;
 uniform float roughnessFactor;
 uniform vec3  emissiveFactor;
 uniform bool  hasNormalTex;
-uniform bool  flipNormals; // negate the geometric normal (e.g. when glb normals point inward)
+uniform bool  flipNormals;      // negate the geometric normal (e.g. when glb normals point inward)
+uniform bool  decalNormalOnly;  // build the decal normal on the geometric normal, ignoring the glb normal map
 
 // ---- decal (the user's PBR texture), only on the active sub-mesh ----
 uniform bool isActiveSubMesh;
@@ -50,6 +51,7 @@ struct DecalMaterial { sampler2D basecolor; sampler2D normal; };
 uniform DecalMaterial decal;             // units 5, 6
 uniform sampler2D decalHeightMap;        // unit 7
 uniform sampler2D decalMask;             // unit 8
+uniform sampler2D decalRoughness;        // unit 9
 uniform float decalHeightScale;
 uniform int  heightMode;                 // 0 none, 1 parallax-occlusion (2 = tess, unsupported here)
 uniform float textureRadius;
@@ -130,6 +132,7 @@ void main() {
   vec3 N = normalize(fs_in.normal);
   if (flipNormals)
     N = -N;
+  vec3 Ng = N; // geometric normal, kept free of the glb normal map for the decal frame
   vec3 V = normalize(viewPos - fs_in.worldPos);
 
   if (hasNormalTex && length(fs_in.matT) > 1e-5) {
@@ -144,7 +147,10 @@ void main() {
     bool hasDecalTBN = length(fs_in.decalT) > 1e-5 && length(fs_in.decalB) > 1e-5;
     vec3 dT = hasDecalTBN ? normalize(fs_in.decalT) : vec3(1, 0, 0);
     vec3 dB = hasDecalTBN ? normalize(fs_in.decalB) : vec3(0, 1, 0);
-    mat3 decalTBN = mat3(dT, dB, N);
+    // build the decal tangent frame on the geometric normal (decalNormalOnly) so the glb
+    // normal map's detail (brushing / weave) does not bleed into the decal's own normal;
+    // otherwise fall back to the glb-perturbed normal N (blended look)
+    mat3 decalTBN = mat3(dT, dB, decalNormalOnly ? Ng : N);
 
     vec2 duv = toTextureUV(fs_in.uvDecal);
     if (heightMode == 1) {
@@ -154,7 +160,15 @@ void main() {
 
     vec4 dcol = texture(decal.basecolor, duv);
     float coverage = dcol.a * texture(decalMask, duv).r;
-    albedo = mix(albedo, toLinear(dcol.rgb), coverage);
+
+    // Where the decal is opaque, drop the glb material entirely and use only the logo's
+    // own material (basecolor / roughness / normal). A painted decal is a dielectric, so
+    // force metallic to 0 and neutralize the glb occlusion/emissive under the logo.
+    albedo    = mix(albedo, toLinear(dcol.rgb), coverage);
+    roughness = mix(roughness, clamp(texture(decalRoughness, duv).r, 0.04, 1.0), coverage);
+    metallic  = mix(metallic, 0.0, coverage);
+    occlusion = mix(occlusion, 1.0, coverage);
+    emissive  = mix(emissive, vec3(0.0), coverage);
 
     vec3 dmapN = texture(decal.normal, duv).rgb * 2.0 - 1.0;
     N = normalize(mix(N, normalize(decalTBN * dmapN), coverage));
