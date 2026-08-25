@@ -92,7 +92,7 @@ POSIX 環境有對應的 `.sh` 版本。
 - `Auto Solve Texture Coords`：選取變動後自動重算（只在 `Faces` 模式可用）
 - `Method`：`Harmonics` / `ExpMap`
 - `Calculate Parameterization`：手動觸發一次求解
-- 貼圖的新增是手動編輯 `textures.toml`（原本的 `Add Texture` 按鈕已停用）
+- 貼圖的新增是手動編輯 `textures.toml`
 - 貼圖清單：點縮圖選取，再點一次取消選取
 
 選到一組 PBR 貼圖後，會多出這組貼圖自己的參數：
