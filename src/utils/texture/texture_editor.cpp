@@ -155,14 +155,16 @@ void TextureEditor::controls() {
       _solved = true;
     }
 
-    if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
-
-      if (!_isPBR) {
-        add(Utils::File::pickImage());
-      } else {
-        add(Utils::File::pickFolder(), 0.0f);
-      }
-    }
+    // Disabled: the folder picker only accepts the basecolor/normal/height/roughness/logo_mask
+    // naming convention, so texture sets are currently added by editing textures.toml by hand.
+    // if (ImGui::Button("Add Texture", {ImGui::GetContentRegionAvail().x, 0})) {
+    //
+    //   if (!_isPBR) {
+    //     add(Utils::File::pickImage());
+    //   } else {
+    //     add(Utils::File::pickFolder(), 0.0f);
+    //   }
+    // }
 
     renderList();
   }
