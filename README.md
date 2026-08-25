@@ -147,7 +147,7 @@ POSIX 環境有對應的 `.sh` 版本。
 - `Auto Solve Texture Coords`：選取變動後自動重算（只在 `Faces` 模式可用）
 - `Method`：`Harmonics` / `ExpMap`
 - `Calculate Parameterization`：手動觸發一次求解
-- `Add Texture`：開啟資料夾選擇器加入一組 PBR 貼圖（見下一節）
+- 貼圖的新增是手動編輯 `textures.toml`（原本的 `Add Texture` 按鈕已停用，見下一節）
 - 貼圖清單：點縮圖選取，再點一次取消選取
 
 選到一組 PBR 貼圖後，會多出這組貼圖自己的參數：
@@ -166,9 +166,16 @@ POSIX 環境有對應的 `.sh` 版本。
 
 貼圖清單存在 **repo 根目錄的 `textures.toml`**（路徑寫死在
 `src/utils/texture/texture_editor.hpp` 的 `PROJECT_DIR "/textures.toml"`）。
-檔案不存在也沒關係，第一次按 `Add Texture` 時會自動建立。
+這個檔案在 `.gitignore` 裡，是每個人自己的本機清單，不會進版控——所以 clone 下來之後
+**要自己建一份**，否則貼圖清單是空的：
 
-> ⚠️ `textures.toml` 在 `.gitignore` 裡，屬於個人的本機清單，不會進版控。
+```shell
+cp textures.sample.toml textures.toml   # Windows: copy textures.sample.toml textures.toml
+```
+
+`textures.sample.toml` 是有進版控的範本，裡面有註解與兩個範例 entry，把 `path` 改成你自己的
+貼圖資料夾即可。repo 本身**沒有附任何範例貼圖圖檔**（`assets/` 整個被 `.gitignore` 排除，
+而且既有的幾組都是商標素材，不適合公開），貼圖請自備。
 
 ### 格式
 
@@ -203,9 +210,9 @@ heightScale = 0.1
 - 通道數在 Debug build 會用 `assert` 檢查：normal 必須是 3 通道，height / roughness / mask 必須是 1 通道。
   灰階圖請確實輸出成單通道 PNG/JPG。
 - 支援的副檔名：`.png`、`.jpg`、`.jpeg`。
-- 檔案是由程式**整份覆寫**的（`PBRTexture::saveTextureList`）：每次 `Add Texture` 都會把整個
-  `pbrList` 重寫一遍，字串一律用單引號。手改是可以的，但要在程式沒開的時候改，
-  否則會被下一次存檔蓋掉。目前 UI 沒有刪除貼圖的按鈕，**要刪貼圖就是手動編輯這個檔案**。
+- 檔案是由程式**整份覆寫**的（`PBRTexture::saveTextureList`）：存檔時會把整個 `pbrList`
+  重寫一遍，字串一律用單引號、註解會被丟掉。所以**請在程式沒開的時候編輯**，
+  也不要把重要註解寫在 `textures.toml` 裡（要寫就寫在 `textures.sample.toml`）。
 - 檔案裡還可能有一個 `texturesList = [...]`（純字串陣列，非 PBR 的單張貼圖模式）。
   目前兩個 panel 都是以 PBR 模式建立 `TextureEditor`，所以這個 key 不會被用到，但存檔時會被保留。
 
@@ -229,10 +236,13 @@ assets/texture/my_logo/
 
 > `assets/` 整個目錄在 `.gitignore` 裡，貼圖與模型都不會進版控。
 
-### 用 `Add Texture` 加入
+### 加入一組貼圖
 
-按 `Add Texture` 會跳出**資料夾**選擇器（不是選檔案）。程式會在你選的資料夾裡依序找這些檔名
-（副檔名 `.png` / `.jpg` / `.jpeg` 都試）：
+目前是**手動在 `textures.toml` 裡加一筆 `[[pbrList]]`**（格式見上一節）。
+
+原本的 `Add Texture` 按鈕已經在 `src/utils/texture/texture_editor.cpp` 裡註解掉了。
+它會跳出**資料夾**選擇器（不是選檔案），並在你選的資料夾裡依序找下列檔名
+（副檔名 `.png` / `.jpg` / `.jpeg` 都試）——如果之後要重新啟用，命名必須照這張表：
 
 | 用途 | 期待的檔名 |
 | --- | --- |
@@ -242,11 +252,9 @@ assets/texture/my_logo/
 | roughness | `roughness.*` |
 | mask | `logo_mask.*` |
 
-`basecolor` / `normal` / `height` / `logo_mask` 任一缺少就會拒絕加入，並在 log 裡印出找不到的路徑。
-用這個方式加入時 `heightScale` 會被設成 `0`，之後在 UI 上調整、或直接改 `textures.toml` 都可以。
-
-> 檔名不一樣（例如既有資料夾裡的 `result.png` / `mask.jpg`）也不是不行，
-> 但那就得**手動在 `textures.toml` 裡加一筆**，因為資料夾選擇器只認上表的名字。
+`basecolor` / `normal` / `height` / `logo_mask` 任一缺少就會拒絕加入，並在 log 裡印出找不到的路徑；
+用這個方式加入時 `heightScale` 會被設成 `0`。這個嚴格的命名規則正是它被停用的原因——
+手寫 `textures.toml` 時檔名是自由的（例如 `result.png` / `mask.jpg` 也可以）。
 
 ### 其他
 

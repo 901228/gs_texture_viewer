@@ -1,0 +1,44 @@
+# textures.sample.toml
+#
+# A template for `textures.toml`, the (git-ignored) PBR texture list the app reads from
+# the repository root. Copy this file to `textures.toml` and edit the paths:
+#
+#     cp textures.sample.toml textures.toml
+#
+# No sample images ship with the repository -- point `path` at your own texture folders.
+#
+# Every entry describes one folder holding five maps. `path` is the folder; the other
+# five fields are file names inside it (basename only, sub-paths are ignored).
+# Fill in all five: a missing `roughness` or `mask` is not handled gracefully.
+#
+# Channel expectations (asserted in Debug builds):
+#   basecolor  RGB or RGBA
+#   normal     RGB, tangent space
+#   height     single channel (R)
+#   roughness  single channel (R)
+#   mask       single channel (R) -- white = decal, black = the glb material shows through
+#
+# Supported extensions: .png .jpg .jpeg
+#
+# The app rewrites this list wholesale whenever it saves, so edit `textures.toml`
+# while the app is closed.
+
+# Entry using the naming convention the (currently disabled) folder picker expects.
+[[pbrList]]
+path = 'D:\research\texture_viewer\assets\texture\my_logo'
+basecolor = 'basecolor.png'
+normal = 'normal.png'
+height = 'height.png'
+roughness = 'roughness.png'
+mask = 'logo_mask.png'
+heightScale = 0.1
+
+# File names are free-form -- only `path` has to be a real folder.
+# `heightScale` may be omitted, in which case it defaults to 0.01.
+[[pbrList]]
+path = 'D:\research\texture_viewer\assets\texture\another_patch'
+basecolor = 'result.png'
+normal = 'normal.png'
+height = 'height.png'
+roughness = 'roughness.png'
+mask = 'mask.jpg'
