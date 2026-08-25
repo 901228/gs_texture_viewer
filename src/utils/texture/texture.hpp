@@ -94,6 +94,7 @@ private:
   std::unique_ptr<ImageTexture> _mask;
 
   float _heightScale;
+  float _roughnessScale = 1.0f; // multiplies the sampled roughness of the decal
 
 public:
   // How the height map is applied. The integer values must match the heightMode
@@ -113,6 +114,7 @@ public:
   [[nodiscard]] inline ImageTexture &mask() const { return *_mask; }
 
   [[nodiscard]] inline float heightScale() const { return _heightScale; }
+  [[nodiscard]] inline float roughnessScale() const { return _roughnessScale; }
 
   [[nodiscard]] inline std::string name() const { return _name; }
 

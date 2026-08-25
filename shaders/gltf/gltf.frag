@@ -52,6 +52,7 @@ uniform DecalMaterial decal;             // units 5, 6
 uniform sampler2D decalHeightMap;        // unit 7
 uniform sampler2D decalMask;             // unit 8
 uniform sampler2D decalRoughness;        // unit 9
+uniform float     decalRoughnessScale;   // multiplies the decal roughness
 uniform float decalHeightScale;
 uniform int  heightMode;                 // 0 none, 1 parallax-occlusion (2 = tess, unsupported here)
 uniform float textureRadius;
@@ -165,7 +166,7 @@ void main() {
     // own material (basecolor / roughness / normal). A painted decal is a dielectric, so
     // force metallic to 0 and neutralize the glb occlusion/emissive under the logo.
     albedo    = mix(albedo, toLinear(dcol.rgb), coverage);
-    roughness = mix(roughness, clamp(texture(decalRoughness, duv).r, 0.04, 1.0), coverage);
+    roughness = mix(roughness, clamp(texture(decalRoughness, duv).r * decalRoughnessScale, 0.04, 1.0), coverage);
     metallic  = mix(metallic, 0.0, coverage);
     occlusion = mix(occlusion, 1.0, coverage);
     emissive  = mix(emissive, vec3(0.0), coverage);

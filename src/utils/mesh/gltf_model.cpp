@@ -400,6 +400,7 @@ void GltfModel::renderSubMesh(SubMesh &sm, bool isActive, int currentTextureId, 
     glActiveTexture(GL_TEXTURE9);
     glBindTexture(GL_TEXTURE_2D, pbrTexture->roughness().id());
     _program->setInt("decalRoughness", 9);
+    _program->setFloat("decalRoughnessScale", pbrTexture->roughnessScale());
   }
 
   glBindVertexArray(sm.vao);

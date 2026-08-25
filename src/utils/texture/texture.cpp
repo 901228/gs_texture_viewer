@@ -255,6 +255,8 @@ PBRTexture::PBRTexture(const std::string path, std::string basecolorPath, std::s
 PBRTexture::~PBRTexture() = default;
 
 void PBRTexture::controls() {
+  ImGui::SliderFloat("roughness scale", &_roughnessScale, 0.0f, 2.0f);
+
   ImGui::Combo("Height Mode", reinterpret_cast<int *>(&_heightMode),
                "None\0Parallax Occlusion\0Tessellation Displacement\0");
 
@@ -293,7 +295,8 @@ void PBRTexture::setupUniforms(const Program &program, unsigned int index,
 
   // Only subdivide when actually displacing geometry; other modes stay at 1
   // (a single patch = the original triangle).
-  const float tess = _heightMode == HeightMode::TessellationDisplacement ? static_cast<float>(_tessLevel) : 1.0f;
+  const float tess =
+      _heightMode == HeightMode::TessellationDisplacement ? static_cast<float>(_tessLevel) : 1.0f;
   program.setFloat("tessLevel", tess);
 }
 
