@@ -81,7 +81,7 @@ class PBRTexture {
 public:
   PBRTexture(const std::string path, std::string basecolorPath, std::string normalPath,
              std::string heightPath, std::string roughnessPath, std::string maskPath,
-             float heightScale = 0.0f);
+             float heightScale = 0.01f);
   ~PBRTexture();
 
 private:
