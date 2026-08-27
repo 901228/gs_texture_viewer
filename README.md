@@ -16,6 +16,21 @@
 git submodule update --init --recursive
 ```
 
+### 第三方函式庫
+
+| 函式庫                                                                         | 版本             | 用途                                               |
+| ------------------------------------------------------------------------------ | ---------------- | -------------------------------------------------- |
+| [glfw](https://github.com/glfw/glfw)                                           | 3.4              | 視窗建立與鍵盤滑鼠輸入                             |
+| glad                                                                           | -                | OpenGL function loader                             |
+| [Dear ImGui](https://github.com/ocornut/imgui)                                 | 1.92.6 (docking) | 整個 UI                                            |
+| [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)                        | 1.83             | 光源方向的 2D gizmo                                |
+| [OpenMesh](https://gitlab.vci.rwth-aachen.de/OpenMesh/OpenMesh)                | 11.0             | 半邊資料結構，選取與參數化都建在上面               |
+| [Eigen](https://gitlab.com/libeigen/eigen)                                     | 5.0.1            | 解 parameterization 的線性系統                     |
+| [GLM](https://github.com/g-truc/glm)                                           | 1.0.3            | 向量／矩陣數學                                     |
+| [assimp](https://github.com/assimp/assimp)                                     | 5.4.3            | 載入 glb/gltf（只開 glTF importer，靜態連結）      |
+| [nativefiledialog-extended](https://github.com/btzy/nativefiledialog-extended) | 1.3.0            | 開檔／存檔對話框                                   |
+| [stb](https://github.com/nothings/stb)                                         | -                | 影像讀取與縮放（`stb_image`, `stb_image_resize2`） |
+
 ### 方法一：Visual Studio generator（Windows 最穩定）
 
 CMake 會自己找到 MSVC，不需要 Developer Command Prompt：
@@ -39,6 +54,23 @@ script/clean.bat              # 清除 build/
 POSIX 環境有對應的 `.sh` 版本。
 
 ---
+
+## assets（模型與範例貼圖）
+
+`assets/` 在 `.gitignore` 裡，**模型與貼圖不會跟著 repo 一起 clone 下來**（只有 `assets/fonts/`
+與 `assets/icons/` 這兩個 UI 用的資料夾是有進版控的）。程式啟動時會掃 `assets/models/` 底下的
+`.glb` / `.gltf` 來填 `Model` 下拉選單，沒有模型就沒有東西可以看。
+
+模型與範例貼圖跟資料集一起放在 FTP 上，路徑為 `/ResearchData/115_TungHua/Data/texture_viewer/`，
+抓下來之後照下面的位置放進 repo：
+
+```
+📦 assets/
+├── 📂 models/      # ← texture_viewer/models/，每個資料夾一個模型的 .glb
+└── 📂 texture/     # ← texture_viewer/texture/，6 組範例 PBR 貼圖
+```
+
+FTP 上只放程式會載入的 `.glb` / `.obj`，Blender 專案檔（`.blend`）與原始下載檔（`raw/`）沒有一起上傳。
 
 ## 執行與操作
 
